@@ -1,0 +1,83 @@
+import apiClient from './client';
+import type { Vehiculo, VehiculoRegistro, VehiculoCobro } from '../types';
+
+export interface VentaSOAT {
+  placa: string;
+  tipo_vehiculo: 'moto' | 'carro';
+  valor_soat_comercial: number;
+  cliente_nombre: string;
+  cliente_documento: string;
+  metodo_pago: string;
+}
+
+export interface TarifaCalculada {
+  valor_rtm: number;
+  valor_terceros: number;
+  valor_total: number;
+  descripcion_antiguedad: string;
+}
+
+export const vehiculosApi = {
+  // Registrar un nuevo vehículo (Recepción)
+  registrar: async (data: VehiculoRegistro): Promise<Vehiculo> => {
+    const response = await apiClient.post<Vehiculo>('/vehiculos/registrar', data);
+    return response.data;
+  },
+
+  // Calcular tarifa según año del modelo y tipo de vehículo
+  calcularTarifa: async (anoModelo: number, tipoVehiculo: string = 'moto'): Promise<TarifaCalculada> => {
+    const response = await apiClient.get<TarifaCalculada>(
+      `/vehiculos/calcular-tarifa/${anoModelo}`,
+      { params: { tipo_vehiculo: tipoVehiculo } }
+    );
+    return response.data;
+  },
+
+  // Obtener vehículos pendientes de pago (Caja)
+  obtenerPendientes: async (): Promise<Vehiculo[]> => {
+    const response = await apiClient.get<Vehiculo[]>('/vehiculos/pendientes');
+    return response.data;
+  },
+
+  // Cobrar un vehículo (Caja)
+  cobrar: async (data: VehiculoCobro): Promise<Vehiculo> => {
+    const response = await apiClient.post<Vehiculo>('/vehiculos/cobrar', data);
+    return response.data;
+  },
+
+  // Venta solo de comisión SOAT (sin revisión)
+  ventaSoat: async (data: VentaSOAT): Promise<Vehiculo> => {
+    const response = await apiClient.post<Vehiculo>('/vehiculos/venta-soat', data);
+    return response.data;
+  },
+
+  // Obtener detalle de un vehículo
+  obtenerPorId: async (id: string): Promise<Vehiculo> => {
+    const response = await apiClient.get<Vehiculo>(`/vehiculos/${id}`);
+    return response.data;
+  },
+
+  // Listar vehículos con filtros y paginación
+  listar: async (params?: { 
+    buscar?: string;
+    estado?: string; 
+    fecha_desde?: string; 
+    fecha_hasta?: string;
+    skip?: number;
+    limit?: number;
+  }): Promise<Vehiculo[]> => {
+    const response = await apiClient.get<Vehiculo[]>('/vehiculos/', { params });
+    return response.data;
+  },
+
+  // Contar total de vehículos con filtros
+  contarTotal: async (params?: {
+    buscar?: string;
+    estado?: string;
+    fecha_desde?: string;
+    fecha_hasta?: string;
+  }): Promise<number> => {
+    const response = await apiClient.get<{ total: number }>('/vehiculos/count/total', { params });
+    return response.data.total;
+  },
+};

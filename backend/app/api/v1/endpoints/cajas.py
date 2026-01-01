@@ -395,10 +395,10 @@ def obtener_vehiculos_por_metodo(
         VehiculoProceso.cliente_nombre,
         VehiculoProceso.total_cobrado,
         VehiculoProceso.metodo_pago,
-        VehiculoProceso.fecha_cobro
+        VehiculoProceso.fecha_pago
     ).filter(
         VehiculoProceso.caja_id == caja.id
-    ).order_by(VehiculoProceso.fecha_cobro.desc()).all()
+    ).order_by(VehiculoProceso.fecha_pago.desc()).all()
     
     # Agrupar por método de pago
     agrupados = {
@@ -417,7 +417,7 @@ def obtener_vehiculos_por_metodo(
                 "placa": vehiculo.placa,
                 "cliente_nombre": vehiculo.cliente_nombre,
                 "total_cobrado": float(vehiculo.total_cobrado),
-                "fecha_cobro": vehiculo.fecha_cobro.isoformat()
+                "fecha_pago": vehiculo.fecha_pago.isoformat() if vehiculo.fecha_pago else None
             })
     
     return agrupados
