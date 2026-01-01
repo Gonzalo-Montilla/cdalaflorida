@@ -1,0 +1,549 @@
+"""
+Endpoints de Vehículos
+"""
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+from sqlalchemy import and_
+from datetime import datetime, date
+from typing import List
+from decimal import Decimal
+
+from app.core.deps import get_db, get_current_user, get_cajero_or_admin, get_recepcionista_or_admin
+from app.models.usuario import Usuario
+from app.models.vehiculo import VehiculoProceso, EstadoVehiculo, MetodoPago
+from app.models.tarifa import Tarifa, ComisionSOAT
+from app.models.caja import Caja, MovimientoCaja, TipoMovimiento, EstadoCaja
+from app.schemas.vehiculo import (
+    VehiculoRegistro,
+    VehiculoCobro,
+    VehiculoResponse,
+    VehiculosPendientes,
+    VehiculoConTarifa,
+    TarifaCalculada,
+    VentaSOAT
+)
+
+router = APIRouter()
+
+
+def mapear_tipo_vehiculo_a_comision(tipo_vehiculo: str) -> str:
+    """
+    Mapear tipo de vehículo RTM a tipo de comisión SOAT.
+    - Motos → 'moto' (comisión $30,000)
+    - Vehículos livianos y pesados → 'carro' (comisión $50,000)
+    """
+    if tipo_vehiculo == "moto":
+        return "moto"
+    elif tipo_vehiculo in ["liviano_particular", "liviano_publico", "pesado_particular", "pesado_publico"]:
+        return "carro"
+    else:
+        # Por defecto, si es un tipo no reconocido, usar 'carro'
+        return "carro"
+
+
+def calcular_tarifa_por_antiguedad(ano_modelo: int, tipo_vehiculo: str, db: Session) -> Tarifa:
+    """Calcular tarifa según antigüedad y tipo de vehículo"""
+    ano_actual = datetime.now().year
+    antiguedad = ano_actual - ano_modelo
+    
+    # Buscar tarifa vigente según tipo y antigüedad
+    hoy = date.today()
+    tarifa = db.query(Tarifa).filter(
+        and_(
+            Tarifa.activa == True,
+            Tarifa.tipo_vehiculo == tipo_vehiculo,
+            Tarifa.vigencia_inicio <= hoy,
+            Tarifa.vigencia_fin >= hoy,
+            Tarifa.antiguedad_min <= antiguedad,
+            (Tarifa.antiguedad_max >= antiguedad) | (Tarifa.antiguedad_max == None)
+        )
+    ).first()
+    
+    if not tarifa:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No se encontró tarifa para vehículo tipo '{tipo_vehiculo}' de {antiguedad} años"
+        )
+    
+    return tarifa
+
+
+@router.post("/registrar", response_model=VehiculoResponse, status_code=status.HTTP_201_CREATED)
+def registrar_vehiculo(
+    vehiculo_data: VehiculoRegistro,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_recepcionista_or_admin)
+):
+    """
+    Registrar vehículo (Recepción)
+    """
+    # Validar que no exista vehículo con la misma placa en proceso
+    placa_upper = vehiculo_data.placa.upper()
+    vehiculo_existente = db.query(VehiculoProceso).filter(
+        and_(
+            VehiculoProceso.placa == placa_upper,
+            VehiculoProceso.estado.in_([EstadoVehiculo.REGISTRADO, EstadoVehiculo.PAGADO])
+        )
+    ).first()
+    
+    if vehiculo_existente:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Ya existe un vehículo con placa {placa_upper} en estado {vehiculo_existente.estado}"
+        )
+    
+    # Calcular tarifa según tipo y antigüedad
+    tarifa = calcular_tarifa_por_antiguedad(vehiculo_data.ano_modelo, vehiculo_data.tipo_vehiculo, db)
+    
+    # Obtener comisión SOAT si aplica
+    comision_soat = Decimal(0)
+    if vehiculo_data.tiene_soat:
+        hoy = date.today()
+        # Mapear tipo de vehículo a tipo de comisión SOAT (moto o carro)
+        tipo_comision = mapear_tipo_vehiculo_a_comision(vehiculo_data.tipo_vehiculo)
+        
+        comision = db.query(ComisionSOAT).filter(
+            and_(
+                ComisionSOAT.tipo_vehiculo == tipo_comision,
+                ComisionSOAT.activa == True,
+                ComisionSOAT.vigencia_inicio <= hoy,
+                (ComisionSOAT.vigencia_fin >= hoy) | (ComisionSOAT.vigencia_fin == None)
+            )
+        ).first()
+        
+        if comision:
+            comision_soat = comision.valor_comision
+    
+    # Crear vehículo en proceso
+    nuevo_vehiculo = VehiculoProceso(
+        placa=placa_upper,
+        tipo_vehiculo=vehiculo_data.tipo_vehiculo,
+        marca=vehiculo_data.marca,
+        modelo=vehiculo_data.modelo,
+        ano_modelo=vehiculo_data.ano_modelo,
+        cliente_nombre=vehiculo_data.cliente_nombre,
+        cliente_documento=vehiculo_data.cliente_documento,
+        cliente_telefono=vehiculo_data.cliente_telefono,
+        valor_rtm=tarifa.valor_total,  # RTM + Terceros (lo que cobra el CDA)
+        tiene_soat=vehiculo_data.tiene_soat,
+        comision_soat=comision_soat,
+        total_cobrado=tarifa.valor_total + comision_soat,
+        estado=EstadoVehiculo.REGISTRADO,
+        observaciones=vehiculo_data.observaciones,
+        registrado_por=current_user.id
+    )
+    
+    db.add(nuevo_vehiculo)
+    db.commit()
+    db.refresh(nuevo_vehiculo)
+    
+    return nuevo_vehiculo
+
+
+@router.get("/pendientes", response_model=VehiculosPendientes)
+def listar_pendientes(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_cajero_or_admin)
+):
+    """
+    Listar vehículos pendientes de pago (para Caja)
+    """
+    vehiculos = db.query(VehiculoProceso).filter(
+        VehiculoProceso.estado == EstadoVehiculo.REGISTRADO
+    ).order_by(VehiculoProceso.fecha_registro).all()
+    
+    return VehiculosPendientes(
+        vehiculos=vehiculos,
+        total=len(vehiculos)
+    )
+
+
+@router.post("/cobrar", response_model=VehiculoResponse)
+def cobrar_vehiculo(
+    cobro_data: VehiculoCobro,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_cajero_or_admin)
+):
+    """
+    Cobrar vehículo (Caja)
+    """
+    # Buscar vehículo
+    vehiculo = db.query(VehiculoProceso).filter(
+        VehiculoProceso.id == cobro_data.vehiculo_id
+    ).first()
+    
+    if not vehiculo:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Vehículo no encontrado"
+        )
+    
+    if vehiculo.estado != EstadoVehiculo.REGISTRADO:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Vehículo ya está en estado: {vehiculo.estado}"
+        )
+    
+    # Verificar que cajero tenga caja abierta
+    caja_abierta = db.query(Caja).filter(
+        and_(
+            Caja.usuario_id == current_user.id,
+            Caja.estado == EstadoCaja.ABIERTA
+        )
+    ).first()
+    
+    if not caja_abierta:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No tienes una caja abierta. Debes abrir caja antes de cobrar."
+        )
+    
+    try:
+        # Si cambió el estado de SOAT, recalcular comisión
+        if cobro_data.tiene_soat != vehiculo.tiene_soat:
+            comision_soat = Decimal(0)
+            if cobro_data.tiene_soat:
+                hoy = date.today()
+                # Mapear tipo de vehículo a tipo de comisión SOAT (moto o carro)
+                tipo_comision = mapear_tipo_vehiculo_a_comision(vehiculo.tipo_vehiculo)
+                
+                comision = db.query(ComisionSOAT).filter(
+                    and_(
+                        ComisionSOAT.tipo_vehiculo == tipo_comision,
+                        ComisionSOAT.activa == True,
+                        ComisionSOAT.vigencia_inicio <= hoy,
+                        (ComisionSOAT.vigencia_fin >= hoy) | (ComisionSOAT.vigencia_fin == None)
+                    )
+                ).first()
+                
+                if comision:
+                    comision_soat = comision.valor_comision
+            
+            vehiculo.tiene_soat = cobro_data.tiene_soat
+            vehiculo.comision_soat = comision_soat
+            vehiculo.total_cobrado = vehiculo.valor_rtm + comision_soat
+        
+        # Actualizar vehículo
+        vehiculo.metodo_pago = MetodoPago(cobro_data.metodo_pago)
+        vehiculo.numero_factura_dian = cobro_data.numero_factura_dian
+        vehiculo.registrado_runt = cobro_data.registrado_runt
+        vehiculo.registrado_sicov = cobro_data.registrado_sicov
+        vehiculo.registrado_indra = cobro_data.registrado_indra
+        vehiculo.fecha_pago = datetime.utcnow()
+        vehiculo.estado = EstadoVehiculo.PAGADO
+        vehiculo.caja_id = caja_abierta.id
+        vehiculo.cobrado_por = current_user.id
+        
+        # Crear movimientos en caja
+        # IMPORTANTE: Solo el efectivo ingresa físicamente a caja
+        # Tarjetas, transferencias y créditos NO ingresan a caja física
+        ingresa_efectivo_fisico = (cobro_data.metodo_pago == "efectivo")
+        
+        # 1. RTM
+        mov_rtm = MovimientoCaja(
+            caja_id=caja_abierta.id,
+            vehiculo_id=vehiculo.id,
+            tipo=TipoMovimiento.RTM,
+            monto=vehiculo.valor_rtm,
+            metodo_pago=cobro_data.metodo_pago,
+            concepto=f"RTM {vehiculo.placa} - {vehiculo.cliente_nombre}",
+            ingresa_efectivo=ingresa_efectivo_fisico,
+            created_by=current_user.id
+        )
+        db.add(mov_rtm)
+        
+        # 2. Comisión SOAT (si aplica)
+        if vehiculo.comision_soat > 0:
+            mov_soat = MovimientoCaja(
+                caja_id=caja_abierta.id,
+                vehiculo_id=vehiculo.id,
+                tipo=TipoMovimiento.COMISION_SOAT,
+                monto=vehiculo.comision_soat,
+                metodo_pago=cobro_data.metodo_pago,
+                concepto=f"Comisión SOAT {vehiculo.placa}",
+                ingresa_efectivo=ingresa_efectivo_fisico,
+                created_by=current_user.id
+            )
+            db.add(mov_soat)
+        
+        db.commit()
+        db.refresh(vehiculo)
+        
+        return vehiculo
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al procesar el cobro: {str(e)}"
+        )
+
+
+@router.post("/venta-soat", response_model=VehiculoResponse, status_code=status.HTTP_201_CREATED)
+def venta_solo_soat(
+    venta_data: VentaSOAT,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_cajero_or_admin)
+):
+    """
+    Venta solo de comisión SOAT (sin revisión técnica)
+    Cliente compra SOAT pero NO hace revisión. Solo se cobra comisión.
+    """
+    # Verificar que cajero tenga caja abierta
+    caja_abierta = db.query(Caja).filter(
+        and_(
+            Caja.usuario_id == current_user.id,
+            Caja.estado == EstadoCaja.ABIERTA
+        )
+    ).first()
+    
+    if not caja_abierta:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No tienes una caja abierta. Debes abrir caja antes de registrar ventas."
+        )
+    
+    # Validar placa
+    placa_upper = venta_data.placa.upper()
+    
+    # Obtener comisión SOAT desde la base de datos
+    hoy = date.today()
+    comision = db.query(ComisionSOAT).filter(
+        and_(
+            ComisionSOAT.tipo_vehiculo == venta_data.tipo_vehiculo,
+            ComisionSOAT.activa == True,
+            ComisionSOAT.vigencia_inicio <= hoy,
+            (ComisionSOAT.vigencia_fin >= hoy) | (ComisionSOAT.vigencia_fin == None)
+        )
+    ).first()
+    
+    if not comision:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No se encontró comisión SOAT vigente para tipo '{venta_data.tipo_vehiculo}'"
+        )
+    
+    comision_soat = comision.valor_comision
+    
+    try:
+        # Crear vehículo con estado PAGADO (no pasa por recepción ni inspección)
+        vehiculo_soat = VehiculoProceso(
+            placa=placa_upper,
+            tipo_vehiculo=venta_data.tipo_vehiculo,
+            marca=None,
+            modelo=None,
+            ano_modelo=datetime.now().year,  # Año actual por defecto
+            cliente_nombre=venta_data.cliente_nombre,
+            cliente_documento=venta_data.cliente_documento,
+            cliente_telefono=None,
+            valor_rtm=Decimal(0),  # NO hay revisión
+            tiene_soat=True,
+            comision_soat=comision_soat,
+            total_cobrado=comision_soat,  # Solo se cobra la comisión
+            metodo_pago=MetodoPago(venta_data.metodo_pago),
+            numero_factura_dian=None,  # Venta de SOAT no requiere factura DIAN
+            registrado_runt=False,
+            registrado_sicov=False,
+            registrado_indra=False,
+            fecha_pago=datetime.utcnow(),
+            estado=EstadoVehiculo.PAGADO,  # Directo a pagado
+            observaciones=f"Venta solo SOAT - Valor comercial: ${venta_data.valor_soat_comercial}",
+            caja_id=caja_abierta.id,
+            registrado_por=current_user.id,
+            cobrado_por=current_user.id
+        )
+        
+        db.add(vehiculo_soat)
+        db.flush()  # Para obtener el ID del vehículo
+        
+        # Crear movimiento en caja
+        ingresa_efectivo_fisico = (venta_data.metodo_pago == "efectivo")
+        
+        mov_soat = MovimientoCaja(
+            caja_id=caja_abierta.id,
+            vehiculo_id=vehiculo_soat.id,
+            tipo=TipoMovimiento.COMISION_SOAT,
+            monto=comision_soat,
+            metodo_pago=venta_data.metodo_pago,
+            concepto=f"Venta SOAT {placa_upper} - Comisión",
+            ingresa_efectivo=ingresa_efectivo_fisico,
+            created_by=current_user.id
+        )
+        db.add(mov_soat)
+        
+        db.commit()
+        db.refresh(vehiculo_soat)
+        
+        return vehiculo_soat
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al registrar venta de SOAT: {str(e)}"
+        )
+
+
+@router.get("/calcular-tarifa/{ano_modelo}", response_model=TarifaCalculada)
+def calcular_tarifa(
+    ano_modelo: int,
+    tipo_vehiculo: str = 'moto',  # Por defecto moto para retrocompatibilidad
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Calcular tarifa para un vehículo según su año de modelo y tipo
+    """
+    tarifa = calcular_tarifa_por_antiguedad(ano_modelo, tipo_vehiculo, db)
+    ano_actual = datetime.now().year
+    antiguedad = ano_actual - ano_modelo
+    
+    # Calcular descripción de antigüedad
+    if tarifa.antiguedad_max:
+        descripcion = f"{tarifa.antiguedad_min}-{tarifa.antiguedad_max} años"
+    else:
+        descripcion = f"{tarifa.antiguedad_min}+ años"
+    
+    return TarifaCalculada(
+        valor_rtm=tarifa.valor_rtm,
+        valor_terceros=tarifa.valor_terceros,
+        valor_total=tarifa.valor_total,
+        descripcion_antiguedad=descripcion
+    )
+
+
+@router.get("/{vehiculo_id}", response_model=VehiculoResponse)
+def obtener_vehiculo(
+    vehiculo_id: str,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Obtener detalles de un vehículo
+    """
+    vehiculo = db.query(VehiculoProceso).filter(
+        VehiculoProceso.id == vehiculo_id
+    ).first()
+    
+    if not vehiculo:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Vehículo no encontrado"
+        )
+    
+    return vehiculo
+
+
+@router.get("/", response_model=List[VehiculoResponse])
+def listar_vehiculos(
+    buscar: str = None,
+    estado: str = None,
+    fecha_desde: str = None,
+    fecha_hasta: str = None,
+    skip: int = 0,
+    limit: int = 20,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Listar vehículos con filtros avanzados y paginación
+    
+    Filtros:
+    - buscar: Búsqueda por placa o cédula del cliente
+    - estado: Filtrar por estado del vehículo
+    - fecha_desde: Fecha inicio (YYYY-MM-DD)
+    - fecha_hasta: Fecha fin (YYYY-MM-DD)
+    - skip: Saltar registros (paginación)
+    - limit: Límite de registros (default 20)
+    """
+    from sqlalchemy import or_, func
+    
+    query = db.query(VehiculoProceso)
+    
+    # Filtro de búsqueda (placa o cédula)
+    if buscar:
+        buscar_term = f"%{buscar.upper()}%"
+        query = query.filter(
+            or_(
+                VehiculoProceso.placa.ilike(buscar_term),
+                VehiculoProceso.cliente_documento.ilike(buscar_term),
+                VehiculoProceso.cliente_nombre.ilike(buscar_term)
+            )
+        )
+    
+    # Filtro por estado
+    if estado:
+        query = query.filter(VehiculoProceso.estado == estado)
+    
+    # Filtro por rango de fechas
+    if fecha_desde:
+        try:
+            fecha_inicio = datetime.strptime(fecha_desde, "%Y-%m-%d").date()
+            query = query.filter(func.date(VehiculoProceso.fecha_registro) >= fecha_inicio)
+        except ValueError:
+            pass
+    
+    if fecha_hasta:
+        try:
+            fecha_fin = datetime.strptime(fecha_hasta, "%Y-%m-%d").date()
+            query = query.filter(func.date(VehiculoProceso.fecha_registro) <= fecha_fin)
+        except ValueError:
+            pass
+    
+    # Ordenar por fecha de registro (más recientes primero)
+    query = query.order_by(VehiculoProceso.fecha_registro.desc())
+    
+    # Paginación
+    vehiculos = query.offset(skip).limit(limit).all()
+    
+    return vehiculos
+
+
+@router.get("/count/total")
+def contar_vehiculos(
+    buscar: str = None,
+    estado: str = None,
+    fecha_desde: str = None,
+    fecha_hasta: str = None,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Contar total de vehículos con los mismos filtros que listar_vehiculos
+    Útil para calcular paginación en el frontend
+    """
+    from sqlalchemy import or_, func
+    
+    query = db.query(VehiculoProceso)
+    
+    # Aplicar los mismos filtros
+    if buscar:
+        buscar_term = f"%{buscar.upper()}%"
+        query = query.filter(
+            or_(
+                VehiculoProceso.placa.ilike(buscar_term),
+                VehiculoProceso.cliente_documento.ilike(buscar_term),
+                VehiculoProceso.cliente_nombre.ilike(buscar_term)
+            )
+        )
+    
+    if estado:
+        query = query.filter(VehiculoProceso.estado == estado)
+    
+    if fecha_desde:
+        try:
+            fecha_inicio = datetime.strptime(fecha_desde, "%Y-%m-%d").date()
+            query = query.filter(func.date(VehiculoProceso.fecha_registro) >= fecha_inicio)
+        except ValueError:
+            pass
+    
+    if fecha_hasta:
+        try:
+            fecha_fin = datetime.strptime(fecha_hasta, "%Y-%m-%d").date()
+            query = query.filter(func.date(VehiculoProceso.fecha_registro) <= fecha_fin)
+        except ValueError:
+            pass
+    
+    total = query.count()
+    
+    return {"total": total}

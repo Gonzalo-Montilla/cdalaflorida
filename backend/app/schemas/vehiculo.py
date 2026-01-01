@@ -1,0 +1,97 @@
+"""
+Schemas de Vehículos en Proceso
+"""
+from pydantic import BaseModel, Field, ConfigDict
+from decimal import Decimal
+from datetime import datetime
+from typing import Optional
+from uuid import UUID
+
+
+class VehiculoRegistro(BaseModel):
+    """Registro de vehículo por recepción"""
+    placa: str = Field(min_length=5, max_length=10)
+    tipo_vehiculo: str = Field(default="moto")
+    marca: Optional[str] = None
+    modelo: Optional[str] = None
+    ano_modelo: int = Field(ge=1950, le=2030)
+    cliente_nombre: str = Field(min_length=3)
+    cliente_documento: str = Field(min_length=5)
+    cliente_telefono: Optional[str] = None
+    tiene_soat: bool = False
+    observaciones: Optional[str] = None
+
+
+class VehiculoCobro(BaseModel):
+    """Datos para cobrar un vehículo"""
+    vehiculo_id: UUID
+    metodo_pago: str
+    tiene_soat: bool = False
+    numero_factura_dian: Optional[str] = None
+    registrado_runt: bool = False
+    registrado_sicov: bool = False
+    registrado_indra: bool = False
+
+
+class VehiculoResponse(BaseModel):
+    """Respuesta de vehículo"""
+    id: UUID
+    placa: str
+    tipo_vehiculo: str
+    marca: Optional[str]
+    modelo: Optional[str]
+    ano_modelo: int
+    cliente_nombre: str
+    cliente_documento: str
+    cliente_telefono: Optional[str]
+    valor_rtm: Decimal
+    tiene_soat: bool
+    comision_soat: Decimal
+    total_cobrado: Decimal
+    metodo_pago: Optional[str]
+    numero_factura_dian: Optional[str]
+    registrado_runt: bool
+    registrado_sicov: bool
+    registrado_indra: bool
+    fecha_pago: Optional[datetime]
+    estado: str
+    observaciones: Optional[str]
+    fecha_registro: datetime
+    
+    # Campos calculados
+    antiguedad: Optional[int] = None
+    
+    model_config = ConfigDict(from_attributes=True)
+
+
+class VehiculosPendientes(BaseModel):
+    """Lista de vehículos pendientes de pago"""
+    vehiculos: list[VehiculoResponse]
+    total: int
+
+
+class VehiculoConTarifa(BaseModel):
+    """Vehículo con tarifa calculada"""
+    placa: str
+    ano_modelo: int
+    antiguedad: int
+    tarifa_aplicable: Decimal
+    descripcion_tarifa: str
+
+
+class TarifaCalculada(BaseModel):
+    """Tarifa calculada para un vehículo"""
+    valor_rtm: Decimal
+    valor_terceros: Decimal
+    valor_total: Decimal
+    descripcion_antiguedad: str
+
+
+class VentaSOAT(BaseModel):
+    """Venta solo de comisión SOAT (sin revisión técnica)"""
+    placa: str = Field(min_length=5, max_length=10)
+    tipo_vehiculo: str = Field(pattern="^(moto|carro)$")  # Solo moto o carro
+    valor_soat_comercial: Decimal = Field(gt=0, description="Valor comercial del SOAT (informativo)")
+    cliente_nombre: str = Field(min_length=3)
+    cliente_documento: str = Field(min_length=5, max_length=10)
+    metodo_pago: str
