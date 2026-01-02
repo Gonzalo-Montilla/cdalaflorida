@@ -357,25 +357,6 @@ function AperturaCaja() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Validar que el monto inicial sea mayor a 0
-    if (formData.monto_inicial <= 0) {
-      alert('⚠️ El monto inicial debe ser mayor a $0 para poder dar cambio a los clientes.\n\nRecomendado: $50,000');
-      return;
-    }
-    
-    // Advertir si el monto es muy bajo
-    if (formData.monto_inicial < 20000) {
-      const confirmar = window.confirm(
-        `⚠️ El monto inicial es muy bajo ($${formData.monto_inicial.toLocaleString()}).\n\n` +
-        `Puede que no tengas suficiente cambio para los clientes.\n\n` +
-        `¿Deseas continuar de todas formas?`
-      );
-      if (!confirmar) {
-        return;
-      }
-    }
-    
     abrirMutation.mutate(formData);
   };
 
@@ -478,7 +459,7 @@ function AperturaCaja() {
               placeholder="50000"
             />
             <p className="text-sm text-gray-500 mt-2 text-center">
-              Base de efectivo para dar cambio (recomendado: $50,000)
+              Base de efectivo para dar cambio (puede ser $0 o cualquier monto)
             </p>
           </div>
 
