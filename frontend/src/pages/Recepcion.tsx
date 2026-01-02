@@ -315,11 +315,44 @@ export default function Recepcion() {
                   placeholder="Selecciona o escribe la marca"
                 />
                 <datalist id="marcas-motos">
+                  {/* MARCAS DE CARROS - PRIORIDAD */}
+                  <option value="KIA" />
+                  <option value="RENAULT" />
+                  <option value="TOYOTA" />
+                  <option value="MAZDA" />
+                  <option value="CHEVROLET" />
+                  <option value="SUZUKI" />
+                  <option value="VOLKSWAGEN" />
+                  <option value="NISSAN" />
+                  <option value="FORD" />
+                  <option value="HYUNDAI" />
+                  <option value="BYD" />
+                  <option value="JAC" />
+                  <option value="FOTON" />
+                  <option value="CHERY" />
+                  <option value="DFSK" />
+                  <option value="GREAT WALL MOTORS" />
+                  <option value="JETOUR" />
+                  <option value="CHANGAN" />
+                  <option value="ZEEKR" />
+                  <option value="MERCEDES-BENZ" />
+                  <option value="BMW" />
+                  <option value="AUDI" />
+                  <option value="VOLVO" />
+                  <option value="LAND ROVER" />
+                  <option value="MINI" />
+                  <option value="PORSCHE" />
+                  <option value="SUBARU" />
+                  <option value="CITROËN" />
+                  <option value="PEUGEOT" />
+                  <option value="MITSUBISHI" />
+                  <option value="HONDA" />
+                  <option value="MG" />
+                  <option value="SSANGYONG" />
+                  {/* MARCAS DE MOTOS */}
                   <option value="YAMAHA" />
                   <option value="AKT" />
                   <option value="BAJAJ" />
-                  <option value="SUZUKI" />
-                  <option value="HONDA" />
                   <option value="VICTORY" />
                   <option value="TVS" />
                   <option value="HERO" />
@@ -329,7 +362,6 @@ export default function Recepcion() {
                   <option value="ROYAL ENFIELD" />
                   <option value="BENELLI" />
                   <option value="FRATELLI" />
-                  <option value="BMW" />
                   <option value="VAISAND" />
                   <option value="STARKER" />
                   <option value="DUCATI" />
