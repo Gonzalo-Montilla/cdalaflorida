@@ -228,17 +228,18 @@ def cerrar_caja(
         )
     
     # Validar que no haya vehículos en proceso sin cobrar
+    # Solo validar los vehículos que fueron asignados a esta caja y aún están REGISTRADOS (sin pagar)
     vehiculos_pendientes = db.query(VehiculoProceso).filter(
         and_(
             VehiculoProceso.caja_id == caja.id,
-            VehiculoProceso.estado.in_([EstadoVehiculo.RECEPCIONADO, EstadoVehiculo.EN_REVISION])
+            VehiculoProceso.estado == EstadoVehiculo.REGISTRADO
         )
     ).count()
     
     if vehiculos_pendientes > 0:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"No se puede cerrar la caja. Hay {vehiculos_pendientes} vehículo(s) pendiente(s) sin cobrar. Debes finalizar todos los procesos antes de cerrar."
+            detail=f"No se puede cerrar la caja. Hay {vehiculos_pendientes} vehículo(s) registrado(s) sin cobrar. Debes cobrar todos los vehículos antes de cerrar."
         )
     
     # Validar desglose de efectivo
