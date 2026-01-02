@@ -229,7 +229,7 @@ def cobrar_vehiculo(
         vehiculo.registrado_runt = cobro_data.registrado_runt
         vehiculo.registrado_sicov = cobro_data.registrado_sicov
         vehiculo.registrado_indra = cobro_data.registrado_indra
-        vehiculo.fecha_pago = datetime.utcnow()
+        vehiculo.fecha_pago = datetime.now(timezone.utc)
         vehiculo.estado = EstadoVehiculo.PAGADO
         vehiculo.caja_id = caja_abierta.id
         vehiculo.cobrado_por = current_user.id
@@ -345,7 +345,7 @@ def venta_solo_soat(
             registrado_runt=False,
             registrado_sicov=False,
             registrado_indra=False,
-            fecha_pago=datetime.utcnow(),
+            fecha_pago=datetime.now(timezone.utc),
             estado=EstadoVehiculo.PAGADO,  # Directo a pagado
             observaciones=f"Venta solo SOAT - Valor comercial: ${venta_data.valor_soat_comercial}",
             caja_id=caja_abierta.id,

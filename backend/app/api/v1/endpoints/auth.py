@@ -251,7 +251,7 @@ def forgot_password(
     
     # Generar token único y seguro
     token = secrets.token_urlsafe(32)
-    expira_en = datetime.utcnow() + timedelta(minutes=30)  # Válido por 30 minutos
+    expira_en = datetime.now(timezone.utc) + timedelta(minutes=30)  # Válido por 30 minutos
     
     # Guardar token en la base de datos
     reset_token = PasswordResetToken(
@@ -316,7 +316,7 @@ def reset_password(
         )
     
     # Verificar que no haya expirado
-    if datetime.utcnow() > reset_token.expira_en:
+    if datetime.now(timezone.utc) > reset_token.expira_en:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="El token ha expirado. Solicita una nueva recuperación"
@@ -332,7 +332,7 @@ def reset_password(
     
     # Actualizar contraseña
     usuario.hashed_password = get_password_hash(request.new_password)
-    usuario.updated_at = datetime.utcnow()
+    usuario.updated_at = datetime.now(timezone.utc)
     
     # Marcar token como usado
     reset_token.usado = True

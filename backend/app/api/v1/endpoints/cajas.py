@@ -227,6 +227,20 @@ def cerrar_caja(
             detail="No tienes una caja abierta para cerrar"
         )
     
+    # Validar que no haya vehículos en proceso sin cobrar
+    vehiculos_pendientes = db.query(VehiculoProceso).filter(
+        and_(
+            VehiculoProceso.caja_id == caja.id,
+            VehiculoProceso.estado.in_([EstadoVehiculo.RECEPCIONADO, EstadoVehiculo.EN_REVISION])
+        )
+    ).count()
+    
+    if vehiculos_pendientes > 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"No se puede cerrar la caja. Hay {vehiculos_pendientes} vehículo(s) pendiente(s) sin cobrar. Debes finalizar todos los procesos antes de cerrar."
+        )
+    
     # Validar desglose de efectivo
     total_desglose = cierre_data.desglose_efectivo.calcular_total()
     if abs(total_desglose - cierre_data.monto_final_fisico) > Decimal('0.01'):  # Tolerancia de 1 centavo

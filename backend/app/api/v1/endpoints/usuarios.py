@@ -264,7 +264,7 @@ def actualizar_usuario(
     if usuario_data.activo is not None:
         usuario.activo = usuario_data.activo
     
-    usuario.updated_at = datetime.utcnow()
+    usuario.updated_at = datetime.now(timezone.utc)
     
     db.commit()
     db.refresh(usuario)
@@ -316,7 +316,7 @@ def cambiar_password(
     
     # Actualizar contraseña
     usuario.hashed_password = get_password_hash(password_data.password)
-    usuario.updated_at = datetime.utcnow()
+    usuario.updated_at = datetime.now(timezone.utc)
     
     db.commit()
     
@@ -362,7 +362,7 @@ def toggle_estado_usuario(
     
     # Toggle estado
     usuario.activo = not usuario.activo
-    usuario.updated_at = datetime.utcnow()
+    usuario.updated_at = datetime.now(timezone.utc)
     
     db.commit()
     db.refresh(usuario)

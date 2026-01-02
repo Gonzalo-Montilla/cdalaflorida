@@ -231,7 +231,7 @@ def crear_movimiento(
         metodo_pago=movimiento_data.metodo_pago,
         origen_caja_id=movimiento_data.origen_caja_id,
         numero_comprobante=movimiento_data.numero_comprobante,
-        fecha_movimiento=movimiento_data.fecha_movimiento or datetime.utcnow(),
+        fecha_movimiento=movimiento_data.fecha_movimiento or datetime.now(timezone.utc),
         created_by=current_user.id
     )
     
@@ -329,7 +329,7 @@ def obtener_saldo_actual(
     
     return {
         "saldo_actual": float(saldo),
-        "fecha_calculo": datetime.utcnow().isoformat()
+        "fecha_calculo": datetime.now(timezone.utc).isoformat()
     }
 
 
@@ -433,7 +433,7 @@ def obtener_desglose_saldo(
     return {
         "desglose": desglose,
         "total": float(total),
-        "fecha_calculo": datetime.utcnow().isoformat()
+        "fecha_calculo": datetime.now(timezone.utc).isoformat()
     }
 
 
@@ -495,7 +495,7 @@ def obtener_desglose_efectivo(
     return {
         "desglose": desglose_total,
         "total_efectivo": float(total_efectivo),
-        "fecha_calculo": datetime.utcnow().isoformat()
+        "fecha_calculo": datetime.now(timezone.utc).isoformat()
     }
 
 
@@ -611,7 +611,7 @@ def actualizar_configuracion(
     if config_data.email_notificacion is not None:
         config.email_notificacion = config_data.email_notificacion
     
-    config.updated_at = datetime.utcnow()
+    config.updated_at = datetime.now(timezone.utc)
     config.updated_by = current_user.id
     
     db.commit()

@@ -157,7 +157,7 @@ def obtener_dashboard_general(
         },
         "desglose_modulos": desglose_modulos,
         "grafica_ingresos_7_dias": ingresos_7_dias,
-        "fecha_generacion": datetime.utcnow().isoformat()
+        "fecha_generacion": datetime.now(timezone.utc).isoformat()
     }
 
 
