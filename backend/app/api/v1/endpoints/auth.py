@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import secrets
 
 from app.core.deps import get_db, get_current_user, get_admin
