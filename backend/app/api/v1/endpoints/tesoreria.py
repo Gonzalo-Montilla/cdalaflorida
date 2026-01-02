@@ -33,6 +33,101 @@ from app.utils.comprobantes import generar_comprobante_egreso
 router = APIRouter()
 
 
+# ==================== FUNCIONES AUXILIARES ====================
+
+def _calcular_desglose_disponible(db: Session) -> dict:
+    """
+    Calcula el desglose de denominaciones actualmente disponible en caja.
+    Retorna un diccionario con las cantidades de cada denominación.
+    """
+    # Obtener todos los movimientos en efectivo con su desglose
+    movimientos_efectivo = db.query(MovimientoTesoreria).filter(
+        MovimientoTesoreria.metodo_pago == "efectivo"
+    ).all()
+    
+    # Inicializar contadores
+    desglose_total = {
+        'billetes_100000': 0,
+        'billetes_50000': 0,
+        'billetes_20000': 0,
+        'billetes_10000': 0,
+        'billetes_5000': 0,
+        'billetes_2000': 0,
+        'billetes_1000': 0,
+        'monedas_1000': 0,
+        'monedas_500': 0,
+        'monedas_200': 0,
+        'monedas_100': 0,
+        'monedas_50': 0,
+    }
+    
+    # Sumar/restar desgloses según tipo de movimiento
+    for mov in movimientos_efectivo:
+        if mov.desglose_efectivo:
+            desg = mov.desglose_efectivo
+            multiplicador = 1 if mov.monto > 0 else -1  # Ingresos suman, egresos restan
+            
+            desglose_total['billetes_100000'] += int(desg.billetes_100000 or 0) * multiplicador
+            desglose_total['billetes_50000'] += int(desg.billetes_50000 or 0) * multiplicador
+            desglose_total['billetes_20000'] += int(desg.billetes_20000 or 0) * multiplicador
+            desglose_total['billetes_10000'] += int(desg.billetes_10000 or 0) * multiplicador
+            desglose_total['billetes_5000'] += int(desg.billetes_5000 or 0) * multiplicador
+            desglose_total['billetes_2000'] += int(desg.billetes_2000 or 0) * multiplicador
+            desglose_total['billetes_1000'] += int(desg.billetes_1000 or 0) * multiplicador
+            desglose_total['monedas_1000'] += int(desg.monedas_1000 or 0) * multiplicador
+            desglose_total['monedas_500'] += int(desg.monedas_500 or 0) * multiplicador
+            desglose_total['monedas_200'] += int(desg.monedas_200 or 0) * multiplicador
+            desglose_total['monedas_100'] += int(desg.monedas_100 or 0) * multiplicador
+            desglose_total['monedas_50'] += int(desg.monedas_50 or 0) * multiplicador
+    
+    return desglose_total
+
+
+def _generar_sugerencia_denominaciones(monto_total: int, desglose_disponible: dict) -> str:
+    """
+    Genera una sugerencia de cómo componer el monto con las denominaciones disponibles.
+    Usa un algoritmo greedy que intenta usar las denominaciones más grandes primero.
+    """
+    # Ordenar denominaciones de mayor a menor
+    denominaciones = [
+        (100000, 'billetes_100000', 'billetes de $100,000'),
+        (50000, 'billetes_50000', 'billetes de $50,000'),
+        (20000, 'billetes_20000', 'billetes de $20,000'),
+        (10000, 'billetes_10000', 'billetes de $10,000'),
+        (5000, 'billetes_5000', 'billetes de $5,000'),
+        (2000, 'billetes_2000', 'billetes de $2,000'),
+        (1000, 'billetes_1000', 'billetes de $1,000'),
+        (1000, 'monedas_1000', 'monedas de $1,000'),
+        (500, 'monedas_500', 'monedas de $500'),
+        (200, 'monedas_200', 'monedas de $200'),
+        (100, 'monedas_100', 'monedas de $100'),
+        (50, 'monedas_50', 'monedas de $50'),
+    ]
+    
+    monto_restante = monto_total
+    sugerencia_desglose = []
+    
+    for valor, campo, nombre in denominaciones:
+        if monto_restante <= 0:
+            break
+        
+        disponible = desglose_disponible.get(campo, 0)
+        if disponible > 0:
+            # Calcular cuántas de esta denominación se necesitan
+            cantidad_necesaria = monto_restante // valor
+            cantidad_a_usar = min(cantidad_necesaria, disponible)
+            
+            if cantidad_a_usar > 0:
+                sugerencia_desglose.append(f"  - {cantidad_a_usar} {nombre}")
+                monto_restante -= cantidad_a_usar * valor
+    
+    # Si se logró componer el monto completo
+    if monto_restante == 0:
+        return "\n".join(sugerencia_desglose)
+    else:
+        return f"No es posible componer ${monto_total:,.0f} con las denominaciones disponibles. Faltan ${monto_restante:,.0f}."
+
+
 # ==================== MOVIMIENTOS ====================
 
 @router.post("/movimientos", response_model=MovimientoTesoreriaResponse, status_code=status.HTTP_201_CREATED)
@@ -71,6 +166,57 @@ def crear_movimiento(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"El desglose de efectivo (${total_desglose:,.0f}) no coincide con el monto declarado (${movimiento_data.monto:,.0f})"
             )
+        
+        # Validar disponibilidad de denominaciones para EGRESOS
+        if movimiento_data.tipo == "egreso":
+            desglose_solicitado = movimiento_data.desglose_efectivo
+            desglose_disponible = _calcular_desglose_disponible(db)
+            
+            # Validar cada denominación
+            denominaciones_faltantes = []
+            denominaciones_map = {
+                'billetes_100000': (100000, 'billetes de $100,000'),
+                'billetes_50000': (50000, 'billetes de $50,000'),
+                'billetes_20000': (20000, 'billetes de $20,000'),
+                'billetes_10000': (10000, 'billetes de $10,000'),
+                'billetes_5000': (5000, 'billetes de $5,000'),
+                'billetes_2000': (2000, 'billetes de $2,000'),
+                'billetes_1000': (1000, 'billetes de $1,000'),
+                'monedas_1000': (1000, 'monedas de $1,000'),
+                'monedas_500': (500, 'monedas de $500'),
+                'monedas_200': (200, 'monedas de $200'),
+                'monedas_100': (100, 'monedas de $100'),
+                'monedas_50': (50, 'monedas de $50'),
+            }
+            
+            for campo, (valor, nombre) in denominaciones_map.items():
+                solicitado = getattr(desglose_solicitado, campo, 0)
+                disponible = desglose_disponible.get(campo, 0)
+                
+                if solicitado > disponible:
+                    denominaciones_faltantes.append(
+                        f"{nombre}: solicita {solicitado} pero solo hay {disponible} disponibles"
+                    )
+            
+            # Si hay denominaciones faltantes, generar error con sugerencias
+            if denominaciones_faltantes:
+                mensaje_error = "No hay suficientes denominaciones disponibles:\n" + "\n".join(
+                    [f"  - {d}" for d in denominaciones_faltantes]
+                )
+                
+                # Generar sugerencia de denominaciones alternativas
+                sugerencia = _generar_sugerencia_denominaciones(
+                    int(movimiento_data.monto),
+                    desglose_disponible
+                )
+                
+                if sugerencia:
+                    mensaje_error += f"\n\nSugerencia de denominaciones disponibles:\n{sugerencia}"
+                
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=mensaje_error
+                )
     
     # Convertir monto según el tipo (ingreso positivo, egreso negativo)
     monto_final = movimiento_data.monto if movimiento_data.tipo == "ingreso" else -movimiento_data.monto
