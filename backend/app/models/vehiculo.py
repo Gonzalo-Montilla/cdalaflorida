@@ -4,7 +4,7 @@ Modelo de Vehículos en Proceso
 from sqlalchemy import Column, String, Integer, Numeric, Boolean, DateTime, ForeignKey, Enum as SQLEnum, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 import enum
 
@@ -77,7 +77,7 @@ class VehiculoProceso(Base):
     caja_id = Column(UUID(as_uuid=True), ForeignKey("cajas.id"), nullable=True)
     registrado_por = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=False)
     cobrado_por = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)
-    fecha_registro = Column(DateTime, default=datetime.utcnow, nullable=False)
+    fecha_registro = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     
     # Relaciones
     caja = relationship("Caja", back_populates="vehiculos")

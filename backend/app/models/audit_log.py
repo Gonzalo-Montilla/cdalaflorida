@@ -3,7 +3,7 @@ Modelo de Auditoría - Registro de operaciones críticas
 """
 from sqlalchemy import Column, String, DateTime, Text, Enum as SQLEnum
 from sqlalchemy.dialects.postgresql import UUID, JSONB
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 import enum
 
@@ -74,7 +74,7 @@ class AuditLog(Base):
     error_message = Column(Text, nullable=True)
     
     # Timestamp
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False, index=True)
     
     def __repr__(self):
         return f"<AuditLog {self.action} by {self.usuario_email} at {self.created_at}>"

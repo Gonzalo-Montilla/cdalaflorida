@@ -4,7 +4,7 @@ Modelos de Tesorería (Caja Fuerte)
 from sqlalchemy import Column, String, Numeric, Boolean, DateTime, ForeignKey, Enum as SQLEnum, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 import enum
 
@@ -70,8 +70,8 @@ class MovimientoTesoreria(Base):
     numero_comprobante = Column(String(50), nullable=True)  # Número de factura, cheque, etc.
     
     # Auditoría
-    fecha_movimiento = Column(DateTime, default=datetime.utcnow, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    fecha_movimiento = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     created_by = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=False)
     
     # Relaciones
@@ -108,7 +108,7 @@ class DesgloseEfectivoTesoreria(Base):
     monedas_50 = Column(Numeric(10, 0), default=0, nullable=False)
     
     # Auditoría
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     
     # Relación
     movimiento = relationship("MovimientoTesoreria", back_populates="desglose_efectivo")
@@ -149,7 +149,7 @@ class ConfiguracionTesoreria(Base):
     email_notificacion = Column(String(200), nullable=True)
     
     # Última actualización
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     updated_by = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"))
     
     # Relación

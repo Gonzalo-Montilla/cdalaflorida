@@ -4,7 +4,7 @@ Modelo de Usuario
 from sqlalchemy import Column, String, Boolean, DateTime, Enum as SQLEnum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 import enum
 
@@ -31,8 +31,8 @@ class Usuario(Base):
     activo = Column(Boolean, default=True, nullable=False)
     
     # Auditoría
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
     # Relaciones
     reset_tokens = relationship("PasswordResetToken", back_populates="usuario", cascade="all, delete-orphan")

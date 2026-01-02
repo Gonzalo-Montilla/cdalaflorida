@@ -4,7 +4,7 @@ Modelo de Tarifas con vigencias anuales
 from sqlalchemy import Column, String, Integer, Numeric, Date, Boolean, DateTime, ForeignKey, CheckConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 from app.db.database import Base
@@ -37,7 +37,7 @@ class Tarifa(Base):
     activa = Column(Boolean, default=True, nullable=False)
     
     # Auditoría
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     created_by = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"))
     
     # Relación con usuario creador
@@ -75,7 +75,7 @@ class ComisionSOAT(Base):
     vigencia_fin = Column(Date, nullable=True)
     activa = Column(Boolean, default=True, nullable=False)
     
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     created_by = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"))
     
     creador = relationship("Usuario", foreign_keys=[created_by])
