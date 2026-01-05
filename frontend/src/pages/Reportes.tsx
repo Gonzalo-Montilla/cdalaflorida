@@ -147,8 +147,8 @@ export default function ReportesPage() {
   });
 
   // Obtener valores únicos para los filtros
-  const tiposUnicos = Array.from(new Set((movimientosData?.movimientos || []).map((m: Movimiento) => m.tipo_movimiento)));
-  const metodosUnicos = Array.from(new Set((movimientosData?.movimientos || []).map((m: Movimiento) => m.metodo_pago)));
+  const tiposUnicos: string[] = Array.from(new Set((movimientosData?.movimientos || []).map((m: Movimiento) => m.tipo_movimiento)));
+  const metodosUnicos: string[] = Array.from(new Set((movimientosData?.movimientos || []).map((m: Movimiento) => m.metodo_pago)));
 
   // Función para limpiar filtros
   const limpiarFiltros = () => {
