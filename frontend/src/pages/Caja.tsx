@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Layout from '../components/Layout';
 import LoadingSpinner from '../components/LoadingSpinner';
+import ErrorBoundary from '../components/ErrorBoundary';
 import { cajasApi } from '../api/cajas';
 import { vehiculosApi } from '../api/vehiculos';
 import { configApi } from '../api/config';
@@ -47,12 +48,13 @@ import {
   Shield,
   Eye,
   CornerUpLeft,
-  Receipt
+  Receipt,
+  Printer
 } from 'lucide-react';
 
 export default function CajaPage() {
   const queryClient = useQueryClient();
-  const [vistaActual, setVistaActual] = useState<'apertura' | 'cobros' | 'cierre' | 'historial'>('cobros');
+  const [vistaActual, setVistaActual] = useState<'apertura' | 'cobros' | 'cobrados-hoy' | 'cierre' | 'historial'>('cobros');
   const [mostrarModalGasto, setMostrarModalGasto] = useState(false);
   const [mostrarModalVentaSOAT, setMostrarModalVentaSOAT] = useState(false);
 
@@ -114,6 +116,15 @@ export default function CajaPage() {
     queryFn: cajasApi.obtenerResumen,
     enabled: !!cajaActiva,
     refetchInterval: 15000, // Actualizar cada 15 segundos
+    retry: 1,
+  });
+
+  // Obtener vehículos cobrados hoy
+  const { data: vehiculosCobradosHoy, isLoading: loadingCobradosHoy } = useQuery({
+    queryKey: ['vehiculos-cobrados-hoy'],
+    queryFn: vehiculosApi.obtenerCobradosHoy,
+    enabled: !!cajaActiva,
+    refetchInterval: 10000, // Refrescar cada 10 segundos
     retry: 1,
   });
 
@@ -268,10 +279,26 @@ export default function CajaPage() {
           }`}
         >
           <Banknote className="w-5 h-5" />
-          Vehículos Pendientes
+          Pendientes
           {vehiculosPendientes && vehiculosPendientes.length > 0 && (
             <span className="ml-2 px-3 py-1 bg-red-500 text-white rounded-full text-sm">
               {vehiculosPendientes.length}
+            </span>
+          )}
+        </button>
+        <button
+          onClick={() => setVistaActual('cobrados-hoy')}
+          className={`flex-1 py-4 rounded-lg font-semibold text-lg transition-all inline-flex items-center justify-center gap-2 ${ 
+            vistaActual === 'cobrados-hoy'
+              ? 'bg-primary-600 text-white shadow-lg'
+              : 'bg-white text-gray-700 hover:bg-gray-100'
+          }`}
+        >
+          <CheckCircle2 className="w-5 h-5" />
+          Cobros de Hoy
+          {vehiculosCobradosHoy && vehiculosCobradosHoy.length > 0 && (
+            <span className="ml-2 px-3 py-1 bg-green-500 text-white rounded-full text-sm">
+              {vehiculosCobradosHoy.length}
             </span>
           )}
         </button>
@@ -284,7 +311,7 @@ export default function CajaPage() {
           }`}
         >
           <Folder className="w-5 h-5" />
-          Historial de Cajas
+          Historial
         </button>
       </div>
 
@@ -297,11 +324,20 @@ export default function CajaPage() {
         />
       )}
 
+      {vistaActual === 'cobrados-hoy' && (
+        <VehiculosCobradosHoy 
+          vehiculos={vehiculosCobradosHoy || []} 
+          loading={loadingCobradosHoy}
+        />
+      )}
+
       {vistaActual === 'cierre' && (
-        <CierreCaja cajaId={cajaActiva.id} onCerrado={() => {
-          queryClient.invalidateQueries({ queryKey: ['caja-activa'] });
-          setVistaActual('cobros');
-        }} />
+        <ErrorBoundary>
+          <CierreCaja cajaId={cajaActiva.id} onCerrado={() => {
+            queryClient.invalidateQueries({ queryKey: ['caja-activa'] });
+            setVistaActual('cobros');
+          }} />
+        </ErrorBoundary>
       )}
 
       {vistaActual === 'historial' && (
@@ -358,14 +394,23 @@ function AperturaCaja() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validar que el monto inicial sea mayor a 0
-    if (formData.monto_inicial <= 0) {
-      alert('⚠️ El monto inicial debe ser mayor a $0 para poder dar cambio a los clientes.\n\nRecomendado: $50,000');
+    // Validar que el monto inicial no sea negativo
+    if (formData.monto_inicial < 0) {
+      alert('⚠️ El monto inicial no puede ser negativo.');
       return;
     }
     
-    // Advertir si el monto es muy bajo
-    if (formData.monto_inicial < 20000) {
+    // Advertir si el monto es $0 o muy bajo
+    if (formData.monto_inicial === 0) {
+      const confirmar = window.confirm(
+        `⚠️ Vas a abrir la caja con $0.\n\n` +
+        `IMPORTANTE: Asegúrate de tener efectivo disponible para dar cambio a los clientes.\n\n` +
+        `¿Deseas continuar?`
+      );
+      if (!confirmar) {
+        return;
+      }
+    } else if (formData.monto_inicial < 20000) {
       const confirmar = window.confirm(
         `⚠️ El monto inicial es muy bajo ($${formData.monto_inicial.toLocaleString()}).\n\n` +
         `Puede que no tengas suficiente cambio para los clientes.\n\n` +
@@ -478,7 +523,7 @@ function AperturaCaja() {
               placeholder="50000"
             />
             <p className="text-sm text-gray-500 mt-2 text-center">
-              Base de efectivo para dar cambio (recomendado: $50,000)
+              Base de efectivo para dar cambio. Puede ser $0 pero asegúrate de tener cambio disponible.
             </p>
           </div>
 
@@ -629,7 +674,7 @@ function VehiculosPendientes({
   });
 
   return (
-    <>
+    <div>
       {/* Buscador */}
       <div className="mb-6">
         <div className="relative">
@@ -679,59 +724,63 @@ function VehiculosPendientes({
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {vehiculosFiltrados.map((vehiculo) => (
-          <button
-            key={vehiculo.id}
-            onClick={() => setVehiculoSeleccionado(vehiculo)}
-            className="vehicle-card text-left hover:scale-105 transition-transform"
-          >
-            <div className="flex justify-between items-start mb-3">
-              <div>
-                <p className="text-3xl font-bold text-gray-900">{vehiculo.placa}</p>
-                <p className="text-sm text-gray-600 capitalize">{vehiculo.tipo_vehiculo}</p>
+        <ErrorBoundary>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {vehiculosFiltrados.map((vehiculo) => (
+            <button
+              key={vehiculo.id}
+              onClick={() => setVehiculoSeleccionado(vehiculo)}
+              className="vehicle-card text-left hover:scale-105 transition-transform"
+            >
+              <div className="flex justify-between items-start mb-3">
+                <div>
+                  <p className="text-3xl font-bold text-gray-900">{vehiculo.placa}</p>
+                  <p className="text-sm text-gray-600 capitalize">{vehiculo.tipo_vehiculo}</p>
+                </div>
+                <span className="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-semibold">
+                  PENDIENTE
+                </span>
               </div>
-              <span className="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-semibold">
-                PENDIENTE
-              </span>
-            </div>
 
-            <div className="space-y-1 text-sm mb-4">
-              <p className="text-gray-700">
-                <span className="font-semibold">Cliente:</span> {vehiculo.cliente_nombre}
-              </p>
-              <p className="text-gray-700">
-                <span className="font-semibold">Documento:</span> {vehiculo.cliente_documento}
-              </p>
-              <p className="text-gray-700">
-                <span className="font-semibold">Modelo:</span> {vehiculo.ano_modelo}
-              </p>
-            </div>
+              <div className="space-y-1 text-sm mb-4">
+                <p className="text-gray-700">
+                  <span className="font-semibold">Cliente:</span> {vehiculo.cliente_nombre}
+                </p>
+                <p className="text-gray-700">
+                  <span className="font-semibold">Documento:</span> {vehiculo.cliente_documento}
+                </p>
+                <p className="text-gray-700">
+                  <span className="font-semibold">Modelo:</span> {vehiculo.ano_modelo}
+                </p>
+              </div>
 
-            <div className="bg-secondary-50 border-2 border-secondary-200 rounded-lg p-3">
-              <p className="text-xs text-secondary-700 mb-1">Total a Cobrar</p>
-              <p className="text-2xl font-bold text-secondary-900">
-                ${vehiculo.total_cobrado.toLocaleString()}
-              </p>
-            </div>
+              <div className="bg-secondary-50 border-2 border-secondary-200 rounded-lg p-3">
+                <p className="text-xs text-secondary-700 mb-1">Total a Cobrar</p>
+                <p className="text-2xl font-bold text-secondary-900">
+                  ${vehiculo.total_cobrado.toLocaleString()}
+                </p>
+              </div>
 
-            <div className="mt-4 py-3 bg-primary-600 text-white rounded-lg font-bold text-center flex items-center justify-center gap-2">
-              <CreditCard className="w-5 h-5" />
-              COBRAR
-            </div>
-          </button>
-        ))}
-        </div>
+              <div className="mt-4 py-3 bg-primary-600 text-white rounded-lg font-bold text-center flex items-center justify-center gap-2">
+                <CreditCard className="w-5 h-5" />
+                COBRAR
+              </div>
+            </button>
+          ))}
+          </div>
+        </ErrorBoundary>
       )}
 
       {/* Modal de Cobro */}
       {vehiculoSeleccionado && (
-        <ModalCobro
-          vehiculo={vehiculoSeleccionado}
-          onClose={() => setVehiculoSeleccionado(null)}
-        />
+        <ErrorBoundary>
+          <ModalCobro
+            vehiculo={vehiculoSeleccionado}
+            onClose={() => setVehiculoSeleccionado(null)}
+          />
+        </ErrorBoundary>
       )}
-    </>
+    </div>
   );
 }
 
@@ -785,7 +834,12 @@ function ModalCobro({ vehiculo, onClose }: { vehiculo: Vehiculo, onClose: () => 
       });
       
       alert(`✅ Cobro registrado exitosamente\n\nRecibo generado: ${nombrePDF}`);
-      queryClient.invalidateQueries({ queryKey: ['vehiculos-pendientes'] });
+      
+      // Defer query invalidation to prevent React DOM errors
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['vehiculos-pendientes'] });
+      }, 300);
+      
       onClose();
     },
   });
@@ -1177,12 +1231,12 @@ function ModalCobro({ vehiculo, onClose }: { vehiculo: Vehiculo, onClose: () => 
               className="flex-1 btn-pos btn-success disabled:opacity-50 inline-flex items-center justify-center gap-2"
             >
               {cobrarMutation.isPending ? (
-                'Procesando...'
+                <span>Procesando...</span>
               ) : (
-                <>
+                <span className="inline-flex items-center justify-center gap-2">
                   <CheckCircle2 className="w-5 h-5" />
                   Confirmar Cobro
-                </>
+                </span>
               )}
             </button>
           </div>
@@ -1230,11 +1284,13 @@ function ModalGasto({ onClose, onSuccess }: { onClose: () => void, onSuccess: ()
       setNombreArchivoPDF(nombrePDF);
       setMostrarExito(true);
       
-      // Invalidar todas las queries relacionadas para actualización automática
-      queryClient.invalidateQueries({ queryKey: ['caja-activa'] });
-      queryClient.invalidateQueries({ queryKey: ['movimientos-caja'] });
-      queryClient.invalidateQueries({ queryKey: ['caja-resumen-tiempo-real'] });
-      queryClient.invalidateQueries({ queryKey: ['caja-resumen'] }); // Para el modal de cierre
+      // Defer query invalidations to prevent React DOM errors
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['caja-activa'] });
+        queryClient.invalidateQueries({ queryKey: ['movimientos-caja'] });
+        queryClient.invalidateQueries({ queryKey: ['caja-resumen-tiempo-real'] });
+        queryClient.invalidateQueries({ queryKey: ['caja-resumen'] }); // Para el modal de cierre
+      }, 300);
     },
   });
 
@@ -1622,9 +1678,11 @@ function CierreCaja({ cajaId, onCerrado }: { cajaId: string, onCerrado: () => vo
         alert('⚠️ Caja cerrada, pero no se pudo descargar el comprobante automáticamente.');
       }
       
-      // Invalidar queries y volver a la vista
-      queryClient.invalidateQueries({ queryKey: ['caja-activa'] });
-      onCerrado();
+      // Defer query invalidation and callback to prevent React DOM errors
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['caja-activa'] });
+        onCerrado();
+      }, 300);
     },
   });
 
@@ -2203,24 +2261,24 @@ function CierreCaja({ cajaId, onCerrado }: { cajaId: string, onCerrado: () => vo
             }`}>
               <div className="flex justify-between items-center">
                 <div>
-                  <p className="text-sm font-medium flex items-center gap-2">
-                    {diferencia === 0 ? (
-                      <>
-                        <CheckCircle2 className="w-5 h-5" />
-                        Caja Cuadrada
-                      </>
-                    ) : diferencia > 0 ? (
-                      <>
-                        <TrendingUp className="w-5 h-5" />
-                        Sobrante en Caja
-                      </>
-                    ) : (
-                      <>
-                        <TrendingDown className="w-5 h-5" />
-                        Faltante en Caja
-                      </>
-                    )}
-                  </p>
+                  {diferencia === 0 && (
+                    <p className="text-sm font-medium flex items-center gap-2">
+                      <CheckCircle2 className="w-5 h-5" />
+                      Caja Cuadrada
+                    </p>
+                  )}
+                  {diferencia > 0 && (
+                    <p className="text-sm font-medium flex items-center gap-2">
+                      <TrendingUp className="w-5 h-5" />
+                      Sobrante en Caja
+                    </p>
+                  )}
+                  {diferencia < 0 && (
+                    <p className="text-sm font-medium flex items-center gap-2">
+                      <TrendingDown className="w-5 h-5" />
+                      Faltante en Caja
+                    </p>
+                  )}
                   <p className="text-xs text-gray-600 mt-1">
                     Saldo Esperado: ${formatCurrency(resumen.saldo_esperado)}
                   </p>
@@ -2269,12 +2327,12 @@ function CierreCaja({ cajaId, onCerrado }: { cajaId: string, onCerrado: () => vo
             className="flex-1 btn-pos btn-danger disabled:opacity-50 inline-flex items-center justify-center gap-2"
           >
             {cerrarMutation.isPending ? (
-              'Cerrando...'
+              <span>Cerrando...</span>
             ) : (
-              <>
+              <span className="inline-flex items-center justify-center gap-2">
                 <Lock className="w-5 h-5" />
                 Cerrar Caja
-              </>
+              </span>
             )}
           </button>
         </div>
@@ -2385,53 +2443,75 @@ function HistorialCajas() {
                   </div>
 
                   {/* Diferencia */}
-                  {esCerrada && (
-                    <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-lg text-sm font-semibold ${
-                      diferencia === 0 
-                        ? 'bg-green-100 text-green-800'
-                        : diferencia > 0
-                        ? 'bg-blue-100 text-blue-800'
-                        : 'bg-red-100 text-red-800'
-                    }`}>
-                      {diferencia === 0 ? (
-                        <>
-                          <CheckCircle2 className="w-4 h-4" />
-                          Cuadrada
-                        </>
-                      ) : diferencia > 0 ? (
-                        <>
-                          <TrendingUp className="w-4 h-4" />
-                          Sobrante: +${diferencia.toLocaleString()}
-                        </>
-                      ) : (
-                        <>
-                          <TrendingDown className="w-4 h-4" />
-                          Faltante: ${diferencia.toLocaleString()}
-                        </>
-                      )}
+                  {esCerrada && diferencia === 0 && (
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg text-sm font-semibold bg-green-100 text-green-800">
+                      <CheckCircle2 className="w-4 h-4" />
+                      Cuadrada
+                    </div>
+                  )}
+                  {esCerrada && diferencia > 0 && (
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg text-sm font-semibold bg-blue-100 text-blue-800">
+                      <TrendingUp className="w-4 h-4" />
+                      Sobrante: +${diferencia.toLocaleString()}
+                    </div>
+                  )}
+                  {esCerrada && diferencia < 0 && (
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg text-sm font-semibold bg-red-100 text-red-800">
+                      <TrendingDown className="w-4 h-4" />
+                      Faltante: ${diferencia.toLocaleString()}
                     </div>
                   )}
                 </div>
 
-                {/* Estado */}
-                <div className="text-right">
-                  <span className={`px-4 py-2 rounded-lg font-bold text-sm inline-flex items-center gap-2 ${
-                    esCerrada
-                      ? 'bg-gray-200 text-gray-800'
-                      : 'bg-green-100 text-green-800'
-                  }`}>
-                    {esCerrada ? (
-                      <>
+                {/* Estado y acciones */}
+                <div className="text-right flex flex-col gap-2">
+                  {esCerrada ? (
+                    <div className="flex flex-col gap-2">
+                      <span className="px-4 py-2 rounded-lg font-bold text-sm inline-flex items-center gap-2 bg-gray-200 text-gray-800">
                         <Lock className="w-4 h-4" />
                         CERRADA
-                      </>
-                    ) : (
-                      <>
-                        <Unlock className="w-4 h-4" />
-                        ABIERTA
-                      </>
-                    )}
-                  </span>
+                      </span>
+                      <button
+                        onClick={async () => {
+                          try {
+                            const token = localStorage.getItem('access_token');
+                            const response = await fetch(`${import.meta.env.VITE_API_URL}/cajas/${caja.id}/comprobante-cierre`, {
+                              headers: {
+                                'Authorization': `Bearer ${token}`
+                              }
+                            });
+                            
+                            if (response.ok) {
+                              const blob = await response.blob();
+                              const url = window.URL.createObjectURL(blob);
+                              const a = document.createElement('a');
+                              a.href = url;
+                              a.download = `comprobante_cierre_${caja.turno}_${new Date(caja.fecha_cierre!).toISOString().slice(0,10)}.pdf`;
+                              document.body.appendChild(a);
+                              a.click();
+                              document.body.removeChild(a);
+                              window.URL.revokeObjectURL(url);
+                            } else {
+                              alert('❌ Error al cargar el comprobante');
+                            }
+                          } catch (error) {
+                            console.error('Error al descargar PDF:', error);
+                            alert('❌ Error al cargar el comprobante');
+                          }
+                        }}
+                        className="px-3 py-1 bg-gray-600 hover:bg-gray-700 text-white text-xs font-semibold rounded-lg inline-flex items-center justify-center gap-1 transition-colors"
+                        title="Re-imprimir comprobante de cierre"
+                      >
+                        <Printer className="w-3 h-3" />
+                        PDF
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="px-4 py-2 rounded-lg font-bold text-sm inline-flex items-center gap-2 bg-green-100 text-green-800">
+                      <Unlock className="w-4 h-4" />
+                      ABIERTA
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -2445,6 +2525,239 @@ function HistorialCajas() {
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+// Componente de Vehículos Cobrados Hoy
+function VehiculosCobradosHoy({ vehiculos, loading }: { vehiculos: Vehiculo[], loading: boolean }) {
+  const [vehiculoSeleccionado, setVehiculoSeleccionado] = useState<Vehiculo | null>(null);
+
+  if (loading) {
+    return <LoadingSpinner message="Cargando vehículos cobrados hoy..." />;
+  }
+
+  if (vehiculos.length === 0) {
+    return (
+      <div className="card-pos text-center py-12">
+        <div className="flex justify-center mb-4">
+          <CheckCircle2 className="w-20 h-20 text-gray-400" />
+        </div>
+        <h3 className="text-2xl font-bold text-gray-900 mb-2">
+          No hay cobros hoy
+        </h3>
+        <p className="text-gray-600">
+          Aún no se han registrado cobros en esta caja
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="mb-4">
+        <p className="text-sm text-gray-600">
+          Vehículos cobrados hoy. Puedes cambiar el método de pago solo el mismo día del cobro.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {vehiculos.map((vehiculo) => (
+          <div key={vehiculo.id} className="card-pos hover:shadow-lg transition-shadow">
+            <div className="flex justify-between items-start mb-3">
+              <div>
+                <p className="text-2xl font-bold text-gray-900">{vehiculo.placa}</p>
+                <p className="text-sm text-gray-600 capitalize">{vehiculo.tipo_vehiculo}</p>
+              </div>
+              <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold">
+                COBRADO
+              </span>
+            </div>
+
+            <div className="space-y-1 text-sm mb-4">
+              <p className="text-gray-700">
+                <span className="font-semibold">Cliente:</span> {vehiculo.cliente_nombre}
+              </p>
+              <p className="text-gray-700">
+                <span className="font-semibold">Método:</span> 
+                <span className="ml-2 px-2 py-1 bg-gray-100 rounded text-xs font-medium capitalize">
+                  {vehiculo.metodo_pago?.replace('_', ' ')}
+                </span>
+              </p>
+              <p className="text-gray-700">
+                <span className="font-semibold">Total:</span> ${vehiculo.total_cobrado.toLocaleString()}
+              </p>
+            </div>
+
+            <button
+              onClick={() => setVehiculoSeleccionado(vehiculo)}
+              className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-sm transition-colors inline-flex items-center justify-center gap-2"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Cambiar Método de Pago
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {/* Modal de cambio de método */}
+      {vehiculoSeleccionado && (
+        <ErrorBoundary>
+          <ModalCambiarMetodoPago
+            vehiculo={vehiculoSeleccionado}
+            onClose={() => setVehiculoSeleccionado(null)}
+          />
+        </ErrorBoundary>
+      )}
+    </div>
+  );
+}
+
+// Modal para cambiar método de pago
+function ModalCambiarMetodoPago({ vehiculo, onClose }: { vehiculo: Vehiculo, onClose: () => void }) {
+  const queryClient = useQueryClient();
+  const [nuevoMetodo, setNuevoMetodo] = useState(vehiculo.metodo_pago || 'efectivo');
+  const [motivo, setMotivo] = useState('');
+
+  const cambiarMetodoMutation = useMutation({
+    mutationFn: () => vehiculosApi.cambiarMetodoPago(vehiculo.id, nuevoMetodo, motivo),
+    onSuccess: (data) => {
+      alert(`✅ ${data.message}\n\nMétodo anterior: ${data.metodo_anterior}\nMétodo nuevo: ${data.metodo_nuevo}`);
+      
+      // Defer query invalidations
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['vehiculos-cobrados-hoy'] });
+        queryClient.invalidateQueries({ queryKey: ['caja-resumen-tiempo-real'] });
+      }, 300);
+      
+      onClose();
+    },
+    onError: (error: any) => {
+      alert(`❌ Error: ${error.response?.data?.detail || 'No se pudo cambiar el método de pago'}`);
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (nuevoMetodo === vehiculo.metodo_pago) {
+      alert('⚠️ El método de pago seleccionado es el mismo que el actual');
+      return;
+    }
+    cambiarMetodoMutation.mutate();
+  };
+
+  const metodosPago = [
+    { id: 'efectivo', nombre: 'Efectivo', Icono: Banknote },
+    { id: 'tarjeta_debito', nombre: 'Tarjeta Débito', Icono: CreditCard },
+    { id: 'tarjeta_credito', nombre: 'Tarjeta Crédito', Icono: CreditCard },
+    { id: 'transferencia', nombre: 'Transferencia', Icono: Smartphone },
+    { id: 'credismart', nombre: 'CrediSmart', Icono: Building2 },
+    { id: 'sistecredito', nombre: 'SisteCredito', Icono: Landmark },
+  ];
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="p-6">
+          <div className="flex justify-between items-start mb-6">
+            <div>
+              <h3 className="text-2xl font-bold text-gray-900 mb-1">
+                Cambiar Método de Pago
+              </h3>
+              <p className="text-sm text-gray-600">
+                Vehículo: <span className="font-bold text-gray-900">{vehiculo.placa}</span> - {vehiculo.cliente_nombre}
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 text-3xl"
+            >
+              ×
+            </button>
+          </div>
+
+          <div className="bg-yellow-50 border-2 border-yellow-200 rounded-lg p-4 mb-6">
+            <p className="text-sm text-yellow-800 font-semibold">
+              📝 Método actual: <span className="uppercase">{vehiculo.metodo_pago?.replace('_', ' ')}</span>
+            </p>
+          </div>
+
+          <form onSubmit={handleSubmit}>
+            <div className="space-y-6">
+              {/* Nuevo Método de Pago */}
+              <div>
+                <label className="block text-lg font-bold text-gray-900 mb-3">
+                  Nuevo Método de Pago <span className="text-red-600">*</span>
+                </label>
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                  {metodosPago.map((metodo) => (
+                    <button
+                      key={metodo.id}
+                      type="button"
+                      onClick={() => setNuevoMetodo(metodo.id)}
+                      className={`p-4 rounded-lg border-2 font-semibold transition-all ${
+                        nuevoMetodo === metodo.id
+                          ? 'border-blue-600 bg-blue-50 text-blue-900 scale-105'
+                          : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                      }`}
+                    >
+                      <div className="flex justify-center mb-2">
+                        <metodo.Icono className="w-6 h-6" />
+                      </div>
+                      <div className="text-sm">{metodo.nombre}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Motivo */}
+              <div>
+                <label className="block text-lg font-bold text-gray-900 mb-3">
+                  Motivo del Cambio <span className="text-red-600">*</span>
+                </label>
+                <textarea
+                  value={motivo}
+                  onChange={(e) => setMotivo(e.target.value)}
+                  className="input-pos"
+                  rows={3}
+                  placeholder="Ej: Cliente cambió de opinión, error al registrar, etc."
+                  minLength={10}
+                  required
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Mínimo 10 caracteres
+                </p>
+              </div>
+            </div>
+
+            {/* Botones */}
+            <div className="flex gap-4 mt-6">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 btn-pos btn-secondary"
+                disabled={cambiarMetodoMutation.isPending}
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={cambiarMetodoMutation.isPending || motivo.length < 10}
+                className="flex-1 btn-pos btn-primary disabled:opacity-50 inline-flex items-center justify-center gap-2"
+              >
+                {cambiarMetodoMutation.isPending ? (
+                  <span>Cambiando...</span>
+                ) : (
+                  <span className="inline-flex items-center justify-center gap-2">
+                    <CheckCircle2 className="w-5 h-5" />
+                    Confirmar Cambio
+                  </span>
+                )}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   );

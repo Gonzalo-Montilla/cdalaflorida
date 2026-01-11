@@ -3,8 +3,8 @@ Endpoints de Vehículos
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from sqlalchemy import and_
-from datetime import datetime, date
+from sqlalchemy import and_, func
+from datetime import datetime, date, timezone
 from typing import List
 from decimal import Decimal
 
@@ -381,6 +381,188 @@ def venta_solo_soat(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error al registrar venta de SOAT: {str(e)}"
+        )
+
+
+@router.get("/cobrados-hoy", response_model=List[VehiculoResponse])
+def listar_cobrados_hoy(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_cajero_or_admin)
+):
+    """
+    Listar vehículos cobrados hoy en la caja del usuario actual
+    Para permitir cambio de método de pago
+    """
+    # Obtener caja activa del usuario
+    caja_abierta = db.query(Caja).filter(
+        and_(
+            Caja.usuario_id == current_user.id,
+            Caja.estado == EstadoCaja.ABIERTA
+        )
+    ).first()
+    
+    if not caja_abierta:
+        return []  # No hay caja abierta, no hay vehículos
+    
+    # Obtener vehículos pagados de hoy en esta caja
+    hoy = date.today()
+    vehiculos = db.query(VehiculoProceso).filter(
+        and_(
+            VehiculoProceso.caja_id == caja_abierta.id,
+            VehiculoProceso.estado == EstadoVehiculo.PAGADO,
+            func.date(VehiculoProceso.fecha_pago) == hoy
+        )
+    ).order_by(VehiculoProceso.fecha_pago.desc()).all()
+    
+    return vehiculos
+
+
+@router.put("/{vehiculo_id}/cambiar-metodo-pago")
+def cambiar_metodo_pago(
+    vehiculo_id: str,
+    nuevo_metodo: str,
+    motivo: str,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_cajero_or_admin)
+):
+    """
+    Cambiar método de pago de un vehículo ya cobrado
+    - Solo si el vehículo está PAGADO
+    - Solo si la caja está ABIERTA
+    - Solo el mismo día del cobro
+    - Requiere motivo obligatorio
+    """
+    # Validar motivo
+    if not motivo or len(motivo.strip()) < 10:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El motivo debe tener al menos 10 caracteres"
+        )
+    
+    # Validar nuevo método de pago
+    metodos_validos = ["efectivo", "tarjeta_debito", "tarjeta_credito", "transferencia", "credismart", "sistecredito"]
+    if nuevo_metodo.lower() not in metodos_validos:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Método de pago inválido. Opciones: {', '.join(metodos_validos)}"
+        )
+    
+    # Buscar vehículo
+    vehiculo = db.query(VehiculoProceso).filter(
+        VehiculoProceso.id == vehiculo_id
+    ).first()
+    
+    if not vehiculo:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Vehículo no encontrado"
+        )
+    
+    # Validar que esté pagado
+    if vehiculo.estado != EstadoVehiculo.PAGADO:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Solo se puede cambiar el método de pago de vehículos pagados. Estado actual: {vehiculo.estado}"
+        )
+    
+    # Validar que tenga caja asociada
+    if not vehiculo.caja_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El vehículo no tiene caja asociada"
+        )
+    
+    # Obtener caja
+    caja = db.query(Caja).filter(Caja.id == vehiculo.caja_id).first()
+    if not caja:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Caja no encontrada"
+        )
+    
+    # Validar que la caja esté abierta
+    if caja.estado != EstadoCaja.ABIERTA:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La caja ya está cerrada. No se puede modificar el método de pago"
+        )
+    
+    # Validar que sea el mismo día
+    hoy = date.today()
+    fecha_pago = vehiculo.fecha_pago.date() if vehiculo.fecha_pago else None
+    if fecha_pago != hoy:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Solo se puede cambiar el método de pago el mismo día del cobro"
+        )
+    
+    # Buscar movimientos de caja de este vehículo
+    movimientos = db.query(MovimientoCaja).filter(
+        and_(
+            MovimientoCaja.caja_id == caja.id,
+            MovimientoCaja.vehiculo_id == vehiculo.id
+        )
+    ).all()
+    
+    if not movimientos:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No se encontraron movimientos asociados a este vehículo"
+        )
+    
+    # Guardar método anterior para auditoría
+    metodo_anterior = vehiculo.metodo_pago
+    
+    try:
+        # Actualizar método de pago en vehículo
+        vehiculo.metodo_pago = MetodoPago(nuevo_metodo)
+        
+        # Actualizar cada movimiento
+        for movimiento in movimientos:
+            movimiento.metodo_pago = nuevo_metodo
+            
+            # Ajustar ingresa_efectivo según nuevo método
+            # SOLO el efectivo ingresa físicamente a caja
+            if nuevo_metodo == "efectivo":
+                movimiento.ingresa_efectivo = True
+            else:
+                movimiento.ingresa_efectivo = False
+        
+        # Registrar en auditoría
+        from app.utils.audit import audit_caja_operation
+        from app.models.audit_log import AuditAction
+        
+        audit_caja_operation(
+            db=db,
+            action=AuditAction.UPDATE_VEHICLE,
+            description=f"Cambio de método de pago: {metodo_anterior} → {nuevo_metodo}. Motivo: {motivo}",
+            usuario=current_user,
+            request=None,
+            metadata={
+                "vehiculo_id": str(vehiculo.id),
+                "placa": vehiculo.placa,
+                "metodo_anterior": metodo_anterior,
+                "metodo_nuevo": nuevo_metodo,
+                "motivo": motivo
+            }
+        )
+        
+        db.commit()
+        
+        return {
+            "success": True,
+            "message": "Método de pago actualizado exitosamente",
+            "metodo_anterior": metodo_anterior,
+            "metodo_nuevo": nuevo_metodo,
+            "vehiculo_id": str(vehiculo.id),
+            "placa": vehiculo.placa
+        }
+    
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al cambiar método de pago: {str(e)}"
         )
 
 

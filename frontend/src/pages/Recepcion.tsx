@@ -4,6 +4,7 @@ import { ClipboardList, Bike, DollarSign, CheckCircle2, XCircle, RotateCcw, Sear
 import Layout from '../components/Layout';
 import LoadingSpinner from '../components/LoadingSpinner';
 import CapturaFotos from '../components/CapturaFotos';
+import ErrorBoundary from '../components/ErrorBoundary';
 import { vehiculosApi, type TarifaCalculada } from '../api/vehiculos';
 import { tarifasApi } from '../api/tarifas';
 import type { VehiculoRegistro } from '../types';
@@ -13,7 +14,6 @@ export default function Recepcion() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [tarifaCalculada, setTarifaCalculada] = useState<TarifaCalculada | null>(null);
   const [fotosVehiculo, setFotosVehiculo] = useState<string[]>([]);
-  const [capturaKey, setCapturaKey] = useState(0); // Key para forzar re-render de CapturaFotos
 
   // Estado del formulario
   const [formData, setFormData] = useState<VehiculoRegistro>({
@@ -102,17 +102,23 @@ export default function Recepcion() {
   const registrarMutation = useMutation({
     mutationFn: vehiculosApi.registrar,
     onSuccess: () => {
-      // Invalidar todas las queries de vehículos para actualización automática
-      queryClient.invalidateQueries({ queryKey: ['vehiculos-hoy'] });
-      queryClient.invalidateQueries({ queryKey: ['vehiculos-count'] });
-      queryClient.invalidateQueries({ queryKey: ['vehiculos'] });
-      queryClient.invalidateQueries({ queryKey: ['vehiculos-pendientes'] }); // Para caja
-      
+      // Mostrar mensaje de éxito ANTES de limpiar
       setShowSuccess(true);
-      // Limpiar formulario Y fotos
-      setFotosVehiculo([]);
-      setCapturaKey(prev => prev + 1); // Forzar re-render de CapturaFotos para limpiar su estado interno
-      resetForm();
+      
+      // Dar tiempo suficiente para que React complete el ciclo de renderizado
+      setTimeout(() => {
+        // Limpiar formulario
+        setFotosVehiculo([]);
+        resetForm();
+        
+        // Invalidar queries después de limpiar estado
+        queryClient.invalidateQueries({ queryKey: ['vehiculos-hoy'] });
+        queryClient.invalidateQueries({ queryKey: ['vehiculos-count'] });
+        queryClient.invalidateQueries({ queryKey: ['vehiculos'] });
+        queryClient.invalidateQueries({ queryKey: ['vehiculos-pendientes'] });
+      }, 300);
+      
+      // Ocultar mensaje de éxito
       setTimeout(() => setShowSuccess(false), 5000);
     },
   });
@@ -494,7 +500,7 @@ export default function Recepcion() {
 
             {/* Captura de Fotos */}
             <CapturaFotos 
-              key={capturaKey}
+              fotos={fotosVehiculo}
               onFotosChange={setFotosVehiculo}
               maxFotos={4}
             />
@@ -507,12 +513,12 @@ export default function Recepcion() {
                 className="flex-1 btn-pos btn-primary disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {registrarMutation.isPending ? (
-                  'Registrando...'
+                  <span>Registrando...</span>
                 ) : (
-                  <>
+                  <span className="flex items-center justify-center gap-2">
                     <CheckCircle2 className="w-5 h-5" />
-                    Registrar Vehículo
-                  </>
+                    <span>Registrar Vehículo</span>
+                  </span>
                 )}
               </button>
               <button
@@ -536,7 +542,7 @@ export default function Recepcion() {
             </h3>
 
             {tarifaCalculada ? (
-              <>
+              <div>
                 <div className="space-y-3 mb-6">
                   <div className="bg-white rounded-lg p-3">
                     <p className="text-xs text-gray-600">Año del Vehículo</p>
@@ -576,20 +582,28 @@ export default function Recepcion() {
                 </div>
 
                 {/* Indicador de fotos */}
-                <div className={`mt-4 p-3 rounded-lg ${
-                  fotosVehiculo.length > 0 ? 'bg-green-50 border-2 border-green-200' : 'bg-gray-50 border-2 border-gray-200'
-                }`}>
-                  <p className="text-xs font-medium mb-1 flex items-center gap-1">
-                    <Camera className="w-4 h-4" />
-                    {fotosVehiculo.length > 0 ? 'Fotos Capturadas' : 'Sin Fotos'}
-                  </p>
-                  <p className={`text-sm font-bold ${
-                    fotosVehiculo.length > 0 ? 'text-green-900' : 'text-gray-500'
-                  }`}>
-                    {fotosVehiculo.length} foto{fotosVehiculo.length !== 1 ? 's' : ''}
-                  </p>
-                </div>
-              </>
+                {fotosVehiculo.length > 0 ? (
+                  <div className="mt-4 p-3 rounded-lg bg-green-50 border-2 border-green-200">
+                    <p className="text-xs font-medium mb-1 flex items-center gap-1">
+                      <Camera className="w-4 h-4" />
+                      <span>Fotos Capturadas</span>
+                    </p>
+                    <p className="text-sm font-bold text-green-900">
+                      <span>{fotosVehiculo.length} {fotosVehiculo.length === 1 ? 'foto' : 'fotos'}</span>
+                    </p>
+                  </div>
+                ) : (
+                  <div className="mt-4 p-3 rounded-lg bg-gray-50 border-2 border-gray-200">
+                    <p className="text-xs font-medium mb-1 flex items-center gap-1">
+                      <Camera className="w-4 h-4" />
+                      <span>Sin Fotos</span>
+                    </p>
+                    <p className="text-sm font-bold text-gray-500">
+                      <span>0 fotos</span>
+                    </p>
+                  </div>
+                )}
+              </div>
             ) : (
               <div className="text-center py-8">
                 <p className="text-gray-500">
@@ -743,12 +757,13 @@ export default function Recepcion() {
         </div>
 
         {/* Grid de Vehículos */}
+        <ErrorBoundary>
         {loadingVehiculos ? (
           <div className="flex items-center justify-center py-12">
             <LoadingSpinner message="Cargando vehículos..." />
           </div>
         ) : vehiculos && vehiculos.length > 0 ? (
-          <>
+          <div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {vehiculos.map((vehiculo) => {
               const fotos = extraerFotosDeObservaciones(vehiculo.observaciones);
@@ -907,7 +922,7 @@ export default function Recepcion() {
                 </div>
               </div>
             )}
-          </>
+          </div>
         ) : (
           <div className="card-pos text-center py-12">
             <Search className="w-16 h-16 text-gray-400 mx-auto mb-4" />
@@ -919,6 +934,7 @@ export default function Recepcion() {
             </p>
           </div>
         )}
+        </ErrorBoundary>
       </div>
     </Layout>
   );

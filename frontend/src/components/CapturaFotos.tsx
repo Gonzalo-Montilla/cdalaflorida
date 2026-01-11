@@ -3,10 +3,18 @@ import { useState, useRef, useEffect } from 'react';
 interface CapturaFotosProps {
   onFotosChange: (fotos: string[]) => void;
   maxFotos?: number;
+  fotos?: string[];
 }
 
-export default function CapturaFotos({ onFotosChange, maxFotos = 4 }: CapturaFotosProps) {
+export default function CapturaFotos({ onFotosChange, maxFotos = 4, fotos: fotosExternas }: CapturaFotosProps) {
   const [fotos, setFotos] = useState<string[]>([]);
+
+  // Sincronizar con fotos externas
+  useEffect(() => {
+    if (fotosExternas !== undefined) {
+      setFotos(fotosExternas);
+    }
+  }, [fotosExternas]);
   const [mostrarCamara, setMostrarCamara] = useState(false);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [camarasTraseras, setCamarasTraseras] = useState(true); // Para móviles

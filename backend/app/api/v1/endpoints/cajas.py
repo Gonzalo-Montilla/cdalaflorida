@@ -231,7 +231,7 @@ def cerrar_caja(
     vehiculos_pendientes = db.query(VehiculoProceso).filter(
         and_(
             VehiculoProceso.caja_id == caja.id,
-            VehiculoProceso.estado.in_([EstadoVehiculo.RECEPCIONADO, EstadoVehiculo.EN_REVISION])
+            VehiculoProceso.estado == EstadoVehiculo.REGISTRADO
         )
     ).count()
     

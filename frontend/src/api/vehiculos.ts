@@ -80,4 +80,23 @@ export const vehiculosApi = {
     const response = await apiClient.get<{ total: number }>('/vehiculos/count/total', { params });
     return response.data.total;
   },
+
+  // Obtener vehículos cobrados hoy (Caja)
+  obtenerCobradosHoy: async (): Promise<Vehiculo[]> => {
+    const response = await apiClient.get<Vehiculo[]>('/vehiculos/cobrados-hoy');
+    return response.data;
+  },
+
+  // Cambiar método de pago de un vehículo ya cobrado
+  cambiarMetodoPago: async (vehiculoId: string, nuevoMetodo: string, motivo: string): Promise<{
+    success: boolean;
+    message: string;
+    metodo_anterior: string;
+    metodo_nuevo: string;
+  }> => {
+    const response = await apiClient.put(`/vehiculos/${vehiculoId}/cambiar-metodo-pago`, null, {
+      params: { nuevo_metodo: nuevoMetodo, motivo }
+    });
+    return response.data;
+  },
 };

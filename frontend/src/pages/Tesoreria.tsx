@@ -87,14 +87,15 @@ export default function TesoreriaPage() {
 
 // ==================== DASHBOARD ====================
 function Dashboard() {
-  // Obtener saldo actual
+  // Obtener saldo actual (prioridad 1)
   const { data: saldo, isLoading: loadingSaldo } = useQuery({
     queryKey: ['tesoreria-saldo'],
     queryFn: tesoreriaApi.obtenerSaldoActual,
-    refetchInterval: 30000, // Actualizar cada 30 segundos
+    refetchInterval: 30000,
+    staleTime: 10000, // Considerar datos frescos por 10s
   });
 
-  // Obtener resumen del mes actual
+  // Obtener resumen del mes actual (prioridad 1)
   const { data: resumen, isLoading: loadingResumen } = useQuery({
     queryKey: ['tesoreria-resumen'],
     queryFn: async () => {
@@ -103,29 +104,37 @@ function Dashboard() {
       return data;
     },
     refetchInterval: 60000,
+    staleTime: 30000,
   });
 
-  // Obtener desglose de saldo
-  const { data: desglose } = useQuery({
+  // Obtener desglose de saldo (lazy - solo si saldo ya cargó)
+  const { data: desglose, isLoading: loadingDesglose } = useQuery({
     queryKey: ['tesoreria-desglose'],
     queryFn: tesoreriaApi.obtenerDesgloseSaldo,
+    enabled: !!saldo, // Solo cargar después del saldo
     refetchInterval: 60000,
+    staleTime: 30000,
   });
 
-  // Obtener desglose de efectivo
-  const { data: desgloseEfectivo } = useQuery({
+  // Obtener desglose de efectivo (lazy)
+  const { data: desgloseEfectivo, isLoading: loadingDesgloseEfectivo } = useQuery({
     queryKey: ['tesoreria-desglose-efectivo'],
     queryFn: tesoreriaApi.obtenerDesgloseEfectivo,
+    enabled: !!saldo, // Solo cargar después del saldo
     refetchInterval: 60000,
+    staleTime: 30000,
   });
 
-  // Obtener últimos movimientos
-  const { data: movimientos } = useQuery({
+  // Obtener últimos movimientos (lazy)
+  const { data: movimientos, isLoading: loadingMovimientos } = useQuery({
     queryKey: ['tesoreria-movimientos-recientes'],
     queryFn: () => tesoreriaApi.listarMovimientos({ limit: 5 }),
+    enabled: !!saldo, // Solo cargar después del saldo
     refetchInterval: 60000,
+    staleTime: 30000,
   });
 
+  // Mostrar loading solo para queries principales
   if (loadingSaldo || loadingResumen) {
     return <LoadingSpinner message="Cargando dashboard..." />;
   }
@@ -212,7 +221,12 @@ function Dashboard() {
             Medios Electrónicos
           </h3>
           <div className="space-y-3">
-            {desglose && (
+            {loadingDesglose ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                <p className="text-sm text-gray-500 mt-2">Cargando desglose...</p>
+              </div>
+            ) : desglose && (
               <>
                 <div className="flex justify-between items-center p-3 bg-white rounded-lg">
                   <span className="text-sm font-semibold text-gray-700 flex items-center gap-2">
@@ -366,7 +380,12 @@ function Dashboard() {
           <Clock className="w-6 h-6 text-primary-600" />
           Movimientos Recientes
         </h3>
-        {movimientos && movimientos.length > 0 ? (
+        {loadingMovimientos ? (
+          <div className="text-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
+            <p className="text-sm text-gray-500 mt-2">Cargando movimientos...</p>
+          </div>
+        ) : movimientos && movimientos.length > 0 ? (
           <div className="space-y-3">
             {movimientos.map((mov) => (
               <div key={mov.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
@@ -425,6 +444,14 @@ function RegistrarMovimiento() {
     queryFn: tesoreriaApi.obtenerCategorias,
   });
 
+  // Obtener inventario de denominaciones disponibles (solo para egresos en efectivo)
+  const { data: inventarioDisponible } = useQuery({
+    queryKey: ['tesoreria-inventario-disponible'],
+    queryFn: tesoreriaApi.obtenerDesgloseEfectivo,
+    enabled: tipoMovimiento === 'egreso' && formData.metodo_pago === 'efectivo',
+    refetchInterval: 30000,
+  });
+
   // Hook de mutación (debe estar antes de cualquier return)
   const registrarMutation = useMutation({
     mutationFn: tesoreriaApi.crearMovimiento,
@@ -464,6 +491,7 @@ function RegistrarMovimiento() {
         metodo_pago: 'efectivo',
         numero_comprobante: '',
       });
+      setDesgloseEfectivo(null); // Limpiar desglose también
       
       const mensaje = tipoMovimiento === 'egreso' 
         ? 'Egreso registrado exitosamente. El comprobante se está descargando...'
@@ -480,6 +508,10 @@ function RegistrarMovimiento() {
     e.preventDefault();
 
     const monto = parseFloat(formData.monto);
+    console.log('=== DEBUG REGISTRO MOVIMIENTO ===');
+    console.log('formData.monto (string):', formData.monto);
+    console.log('monto parseado (number):', monto);
+    console.log('tipo:', tipoMovimiento);
     
     // Validar desglose de efectivo si es necesario
     if (formData.metodo_pago === 'efectivo' && desgloseEfectivo) {
@@ -532,6 +564,8 @@ function RegistrarMovimiento() {
       data.desglose_efectivo = desgloseEfectivo;
     }
 
+    console.log('Data que se envía al backend:', data);
+    console.log('=================================');
     registrarMutation.mutate(data);
   };
 
@@ -662,12 +696,17 @@ function RegistrarMovimiento() {
                 value={formData.monto}
                 onChange={(e) => setFormData({ ...formData, monto: e.target.value })}
                 className="input-pos text-2xl text-center font-bold pl-12"
-                placeholder="0"
-                step="any"
+                placeholder="Ejemplo: 2000000"
+                step="1"
                 min="1"
                 required
               />
             </div>
+            {formData.monto && parseFloat(formData.monto) > 0 && (
+              <p className="mt-2 text-lg text-center text-gray-700 font-semibold">
+                Valor: <span className="text-primary-600">${parseFloat(formData.monto).toLocaleString()}</span>
+              </p>
+            )}
           </div>
 
           {/* Beneficiario (solo para egresos) */}
@@ -744,9 +783,23 @@ function RegistrarMovimiento() {
           {/* Contador de Efectivo - Solo si el método de pago es efectivo */}
           {formData.metodo_pago === 'efectivo' && formData.monto && parseFloat(formData.monto) > 0 && (
             <div className="mb-6">
+              {tipoMovimiento === 'egreso' && inventarioDisponible && (
+                <div className="mb-4 bg-blue-50 border-2 border-blue-300 rounded-lg p-4">
+                  <p className="text-sm font-bold text-blue-900 mb-2 flex items-center gap-2">
+                    <Banknote className="w-5 h-5" />
+                    Denominaciones Disponibles en Caja
+                  </p>
+                  <p className="text-xs text-blue-700">
+                    Total efectivo: <span className="font-bold">${inventarioDisponible.total_efectivo?.toLocaleString()}</span>
+                  </p>
+                </div>
+              )}
+              
               <ContadorEfectivo 
                 montoDeclarado={parseFloat(formData.monto)}
                 onChange={setDesgloseEfectivo}
+                esEgreso={tipoMovimiento === 'egreso'}
+                desgloseDisponible={tipoMovimiento === 'egreso' ? inventarioDisponible?.desglose : undefined}
               />
             </div>
           )}

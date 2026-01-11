@@ -18,9 +18,11 @@ export interface DesgloseEfectivo {
 interface Props {
   montoDeclarado: number;
   onChange: (desglose: DesgloseEfectivo) => void;
+  esEgreso?: boolean;
+  desgloseDisponible?: DesgloseEfectivo;
 }
 
-export default function ContadorEfectivo({ montoDeclarado, onChange }: Props) {
+export default function ContadorEfectivo({ montoDeclarado, onChange, esEgreso = false, desgloseDisponible }: Props) {
   const [desglose, setDesglose] = useState<DesgloseEfectivo>({
     billetes_100000: 0,
     billetes_50000: 0,
@@ -93,8 +95,13 @@ export default function ContadorEfectivo({ montoDeclarado, onChange }: Props) {
           const cantidad = desglose[item.campo];
           const subtotal = cantidad * item.denominacion;
 
+          const disponible = esEgreso && desgloseDisponible ? desgloseDisponible[item.campo] : undefined;
+          const excedeLimite = esEgreso && disponible !== undefined && cantidad > disponible;
+          
           return (
-            <div key={item.campo} className="bg-white rounded-lg p-3 border border-gray-200">
+            <div key={item.campo} className={`bg-white rounded-lg p-3 border-2 ${
+              excedeLimite ? 'border-red-500 bg-red-50' : 'border-gray-200'
+            }`}>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-semibold text-gray-700">
                   {item.emoji} {item.label}
@@ -105,14 +112,32 @@ export default function ContadorEfectivo({ montoDeclarado, onChange }: Props) {
                   </span>
                 )}
               </div>
+              
+              {/* Mostrar disponible solo en egresos */}
+              {esEgreso && disponible !== undefined && (
+                <div className="text-xs text-gray-500 mb-1">
+                  Disponible: <span className="font-bold">{disponible}</span>
+                </div>
+              )}
+              
               <input
                 type="number"
                 min="0"
+                max={esEgreso && disponible !== undefined ? disponible : undefined}
                 value={cantidad || ''}
                 onChange={(e) => handleChange(item.campo, e.target.value)}
                 placeholder="0"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center font-bold"
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center font-bold ${
+                  excedeLimite ? 'border-red-500 bg-red-50' : 'border-gray-300'
+                }`}
               />
+              
+              {/* Alerta si excede disponible */}
+              {excedeLimite && (
+                <div className="mt-1 text-xs font-bold text-red-700 flex items-center gap-1">
+                  ⚠️ Solo hay {disponible} disponibles
+                </div>
+              )}
             </div>
           );
         })}
