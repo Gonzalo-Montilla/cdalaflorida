@@ -5,21 +5,14 @@ import Layout from '../components/Layout';
 import LoadingSpinner from '../components/LoadingSpinner';
 import CapturaFotos from '../components/CapturaFotos';
 import ErrorBoundary from '../components/ErrorBoundary';
-import Toast, { type ToastType } from '../components/Toast';
+import { useToast } from '../contexts/ToastContext';
 import { vehiculosApi, type TarifaCalculada } from '../api/vehiculos';
 import { tarifasApi } from '../api/tarifas';
 import type { VehiculoRegistro } from '../types';
 
-interface ToastState {
-  show: boolean;
-  type: ToastType;
-  title: string;
-  message?: string;
-}
-
 export default function Recepcion() {
   const queryClient = useQueryClient();
-  const [toast, setToast] = useState<ToastState>({ show: false, type: 'success', title: '' });
+  const { showToast } = useToast();
   const [tarifaCalculada, setTarifaCalculada] = useState<TarifaCalculada | null>(null);
   const [fotosVehiculo, setFotosVehiculo] = useState<string[]>([]);
 
@@ -112,15 +105,14 @@ export default function Recepcion() {
     onSuccess: () => {
       const cantidadFotos = fotosVehiculo.length;
       
-      // 1. Mostrar notificación de éxito INMEDIATAMENTE
-      setToast({
-        show: true,
-        type: 'success',
-        title: '¡Vehículo registrado exitosamente!',
-        message: cantidadFotos > 0 
+      // 1. Mostrar notificación GLOBAL (NO afectada por ErrorBoundary)
+      showToast(
+        'success',
+        '¡Vehículo registrado exitosamente!',
+        cantidadFotos > 0 
           ? `${cantidadFotos} foto${cantidadFotos !== 1 ? 's' : ''} adjuntada${cantidadFotos !== 1 ? 's' : ''}`
           : undefined
-      });
+      );
       
       // 2. Limpiar formulario después de un momento (para que el toast capture los datos)
       setTimeout(() => {
@@ -139,12 +131,11 @@ export default function Recepcion() {
     onError: (error: any) => {
       // Manejo de errores robusto
       const errorMessage = error?.response?.data?.detail || 'Error al registrar el vehículo';
-      setToast({
-        show: true,
-        type: 'error',
-        title: 'Error al registrar vehículo',
-        message: typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage)
-      });
+      showToast(
+        'error',
+        'Error al registrar vehículo',
+        typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage)
+      );
     }
   });
 
@@ -245,16 +236,7 @@ export default function Recepcion() {
 
   return (
     <Layout title="Módulo de Recepción">
-      {/* Sistema de notificaciones profesional */}
-      {toast.show && (
-        <Toast
-          type={toast.type}
-          title={toast.title}
-          message={toast.message}
-          duration={5000}
-          onClose={() => setToast({ ...toast, show: false })}
-        />
-      )}
+      {/* Toast ahora es GLOBAL - está en ToastProvider */}
 
       <div className="mb-6">
         <h2 className="text-3xl font-bold text-gray-900 mb-2 flex items-center gap-3">
