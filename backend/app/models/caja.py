@@ -63,6 +63,7 @@ class Caja(Base):
     vehiculos = relationship("VehiculoProceso", back_populates="caja")
     movimientos = relationship("MovimientoCaja", back_populates="caja", cascade="all, delete-orphan")
     desglose_cierre = relationship("DesgloseEfectivoCierre", back_populates="caja", uselist=False)
+    notificaciones_cierre = relationship("NotificacionCierreCaja", back_populates="caja")
     
     def __repr__(self):
         return f"<Caja {self.turno} - {self.usuario.nombre_completo} - {self.estado}>"

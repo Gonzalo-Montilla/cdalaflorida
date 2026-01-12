@@ -3,7 +3,7 @@ API Router principal v1
 """
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import auth, vehiculos, cajas, tarifas, config, tesoreria, reportes, usuarios
+from app.api.v1.endpoints import auth, vehiculos, cajas, tarifas, config, tesoreria, reportes, usuarios, notificaciones
 
 api_router = APIRouter()
 
@@ -16,3 +16,4 @@ api_router.include_router(tesoreria.router, prefix="/tesoreria", tags=["tesoreri
 api_router.include_router(reportes.router, prefix="/reportes", tags=["reportes"])
 api_router.include_router(usuarios.router, prefix="/usuarios", tags=["usuarios"])
 api_router.include_router(config.router, prefix="/config", tags=["config"])
+api_router.include_router(notificaciones.router, prefix="/notificaciones", tags=["notificaciones"])

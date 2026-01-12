@@ -287,7 +287,22 @@ def cerrar_caja(
         )
         db.add(desglose)
         
-        # Commit atómico de caja + desglose
+        # Crear notificación para administradores
+        from app.models.notificacion_cierre import NotificacionCierreCaja
+        notificacion = NotificacionCierreCaja(
+            caja_id=caja.id,
+            turno=caja.turno.value,
+            cajera_nombre=current_user.nombre_completo,
+            fecha_cierre=caja.fecha_cierre,
+            efectivo_entregar=cierre_data.monto_final_fisico,
+            monto_sistema=Decimal(str(saldo_esperado)),
+            monto_fisico=cierre_data.monto_final_fisico,
+            diferencia=caja.diferencia,
+            observaciones=cierre_data.observaciones_cierre
+        )
+        db.add(notificacion)
+        
+        # Commit atómico de caja + desglose + notificación
         db.commit()
         db.refresh(caja)
         
