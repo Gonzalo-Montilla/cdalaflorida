@@ -155,8 +155,8 @@ function Dashboard() {
                 Saldo por debajo del umbral mínimo
               </h3>
               <p className="text-sm text-red-700">
-                Saldo actual: ${saldoActual.toLocaleString()} | 
-                Umbral mínimo: ${resumen?.umbral_minimo.toLocaleString()}
+                Saldo actual: ${formatCurrency(saldoActual)} | 
+                Umbral mínimo: ${formatCurrency(resumen?.umbral_minimo || 0)}
               </p>
             </div>
           </div>
@@ -170,7 +170,7 @@ function Dashboard() {
           Saldo Actual en Caja Fuerte
         </h3>
         <p className="text-5xl font-bold mb-4">
-          ${saldoActual.toLocaleString()}
+          ${formatCurrency(saldoActual)}
         </p>
         <p className="text-sm opacity-90">
           Actualizado: {new Date(saldo?.fecha_calculo || '').toLocaleString('es-CO')}
@@ -186,7 +186,7 @@ function Dashboard() {
             Ingresos del Mes
           </p>
           <p className="text-3xl font-bold text-blue-900">
-            ${(resumen?.total_ingresos ?? 0).toLocaleString()}
+            ${formatCurrency(resumen?.total_ingresos ?? 0)}
           </p>
         </div>
 
@@ -197,7 +197,7 @@ function Dashboard() {
             Egresos del Mes
           </p>
           <p className="text-3xl font-bold text-red-900">
-            ${(resumen?.total_egresos ?? 0).toLocaleString()}
+            ${formatCurrency(resumen?.total_egresos ?? 0)}
           </p>
         </div>
 
@@ -235,7 +235,7 @@ function Dashboard() {
                     Transferencia
                   </span>
                   <span className="text-xl font-bold text-blue-600">
-                    ${(desglose.desglose.transferencia || 0).toLocaleString()}
+                    ${formatCurrency(desglose.desglose.transferencia || 0)}
                   </span>
                 </div>
                 <div className="flex justify-between items-center p-3 bg-white rounded-lg">
@@ -244,7 +244,7 @@ function Dashboard() {
                     Consignación
                   </span>
                   <span className="text-xl font-bold text-orange-600">
-                    ${(desglose.desglose.consignacion || 0).toLocaleString()}
+                    ${formatCurrency(desglose.desglose.consignacion || 0)}
                   </span>
                 </div>
                 <div className="flex justify-between items-center p-3 bg-white rounded-lg">
@@ -253,18 +253,18 @@ function Dashboard() {
                     Cheque
                   </span>
                   <span className="text-xl font-bold text-purple-600">
-                    ${(desglose.desglose.cheque || 0).toLocaleString()}
+                    ${formatCurrency(desglose.desglose.cheque || 0)}
                   </span>
                 </div>
                 <div className="border-t-2 border-blue-300 pt-3 mt-3">
                   <div className="flex justify-between items-center">
                     <span className="text-lg font-bold text-gray-900">Total Electrónico:</span>
                     <span className="text-2xl font-bold text-blue-700">
-                      ${(
+                      ${formatCurrency(
                         (desglose.desglose.transferencia || 0) +
                         (desglose.desglose.consignacion || 0) +
                         (desglose.desglose.cheque || 0)
-                      ).toLocaleString()}
+                      )}
                     </span>
                   </div>
                 </div>
@@ -282,7 +282,7 @@ function Dashboard() {
           <div className="mb-4 p-4 bg-secondary-100 border-2 border-secondary-400 rounded-lg">
             <p className="text-sm text-secondary-700 mb-1">Total en Efectivo</p>
             <p className="text-3xl font-bold text-secondary-900">
-              ${(desglose?.desglose.efectivo || 0).toLocaleString()}
+              ${formatCurrency(desglose?.desglose.efectivo || 0)}
             </p>
           </div>
 
@@ -298,43 +298,43 @@ function Dashboard() {
                 {desgloseEfectivo.desglose.billetes_100000 > 0 && (
                   <div className="flex justify-between text-sm">
                     <span>$100.000 x {desgloseEfectivo.desglose.billetes_100000}</span>
-                    <span className="font-semibold">${(desgloseEfectivo.desglose.billetes_100000 * 100000).toLocaleString()}</span>
+                    <span className="font-semibold">${formatCurrency(desgloseEfectivo.desglose.billetes_100000 * 100000)}</span>
                   </div>
                 )}
                 {desgloseEfectivo.desglose.billetes_50000 > 0 && (
                   <div className="flex justify-between text-sm">
                     <span>$50.000 x {desgloseEfectivo.desglose.billetes_50000}</span>
-                    <span className="font-semibold">${(desgloseEfectivo.desglose.billetes_50000 * 50000).toLocaleString()}</span>
+                    <span className="font-semibold">${formatCurrency(desgloseEfectivo.desglose.billetes_50000 * 50000)}</span>
                   </div>
                 )}
                 {desgloseEfectivo.desglose.billetes_20000 > 0 && (
                   <div className="flex justify-between text-sm">
                     <span>$20.000 x {desgloseEfectivo.desglose.billetes_20000}</span>
-                    <span className="font-semibold">${(desgloseEfectivo.desglose.billetes_20000 * 20000).toLocaleString()}</span>
+                    <span className="font-semibold">${formatCurrency(desgloseEfectivo.desglose.billetes_20000 * 20000)}</span>
                   </div>
                 )}
                 {desgloseEfectivo.desglose.billetes_10000 > 0 && (
                   <div className="flex justify-between text-sm">
                     <span>$10.000 x {desgloseEfectivo.desglose.billetes_10000}</span>
-                    <span className="font-semibold">${(desgloseEfectivo.desglose.billetes_10000 * 10000).toLocaleString()}</span>
+                    <span className="font-semibold">${formatCurrency(desgloseEfectivo.desglose.billetes_10000 * 10000)}</span>
                   </div>
                 )}
                 {desgloseEfectivo.desglose.billetes_5000 > 0 && (
                   <div className="flex justify-between text-sm">
                     <span>$5.000 x {desgloseEfectivo.desglose.billetes_5000}</span>
-                    <span className="font-semibold">${(desgloseEfectivo.desglose.billetes_5000 * 5000).toLocaleString()}</span>
+                    <span className="font-semibold">${formatCurrency(desgloseEfectivo.desglose.billetes_5000 * 5000)}</span>
                   </div>
                 )}
                 {desgloseEfectivo.desglose.billetes_2000 > 0 && (
                   <div className="flex justify-between text-sm">
                     <span>$2.000 x {desgloseEfectivo.desglose.billetes_2000}</span>
-                    <span className="font-semibold">${(desgloseEfectivo.desglose.billetes_2000 * 2000).toLocaleString()}</span>
+                    <span className="font-semibold">${formatCurrency(desgloseEfectivo.desglose.billetes_2000 * 2000)}</span>
                   </div>
                 )}
                 {desgloseEfectivo.desglose.billetes_1000 > 0 && (
                   <div className="flex justify-between text-sm">
                     <span>$1.000 x {desgloseEfectivo.desglose.billetes_1000}</span>
-                    <span className="font-semibold">${(desgloseEfectivo.desglose.billetes_1000 * 1000).toLocaleString()}</span>
+                    <span className="font-semibold">${formatCurrency(desgloseEfectivo.desglose.billetes_1000 * 1000)}</span>
                   </div>
                 )}
 
@@ -342,31 +342,31 @@ function Dashboard() {
                 {desgloseEfectivo.desglose.monedas_1000 > 0 && (
                   <div className="flex justify-between text-sm">
                     <span>$1.000 x {desgloseEfectivo.desglose.monedas_1000}</span>
-                    <span className="font-semibold">${(desgloseEfectivo.desglose.monedas_1000 * 1000).toLocaleString()}</span>
+                    <span className="font-semibold">${formatCurrency(desgloseEfectivo.desglose.monedas_1000 * 1000)}</span>
                   </div>
                 )}
                 {desgloseEfectivo.desglose.monedas_500 > 0 && (
                   <div className="flex justify-between text-sm">
                     <span>$500 x {desgloseEfectivo.desglose.monedas_500}</span>
-                    <span className="font-semibold">${(desgloseEfectivo.desglose.monedas_500 * 500).toLocaleString()}</span>
+                    <span className="font-semibold">${formatCurrency(desgloseEfectivo.desglose.monedas_500 * 500)}</span>
                   </div>
                 )}
                 {desgloseEfectivo.desglose.monedas_200 > 0 && (
                   <div className="flex justify-between text-sm">
                     <span>$200 x {desgloseEfectivo.desglose.monedas_200}</span>
-                    <span className="font-semibold">${(desgloseEfectivo.desglose.monedas_200 * 200).toLocaleString()}</span>
+                    <span className="font-semibold">${formatCurrency(desgloseEfectivo.desglose.monedas_200 * 200)}</span>
                   </div>
                 )}
                 {desgloseEfectivo.desglose.monedas_100 > 0 && (
                   <div className="flex justify-between text-sm">
                     <span>$100 x {desgloseEfectivo.desglose.monedas_100}</span>
-                    <span className="font-semibold">${(desgloseEfectivo.desglose.monedas_100 * 100).toLocaleString()}</span>
+                    <span className="font-semibold">${formatCurrency(desgloseEfectivo.desglose.monedas_100 * 100)}</span>
                   </div>
                 )}
                 {desgloseEfectivo.desglose.monedas_50 > 0 && (
                   <div className="flex justify-between text-sm">
                     <span>$50 x {desgloseEfectivo.desglose.monedas_50}</span>
-                    <span className="font-semibold">${(desgloseEfectivo.desglose.monedas_50 * 50).toLocaleString()}</span>
+                    <span className="font-semibold">${formatCurrency(desgloseEfectivo.desglose.monedas_50 * 50)}</span>
                   </div>
                 )}
               </div>
@@ -412,7 +412,7 @@ function Dashboard() {
                 <p className={`text-xl font-bold ml-4 ${
                   mov.tipo === 'ingreso' ? 'text-green-600' : 'text-red-600'
                 }`}>
-                  {mov.tipo === 'ingreso' ? '+' : '-'}${Math.abs(mov.monto).toLocaleString()}
+                  {mov.tipo === 'ingreso' ? '+' : '-'}${formatCurrency(Math.abs(mov.monto))}
                 </p>
               </div>
             ))}
@@ -534,14 +534,14 @@ function RegistrarMovimiento() {
       };
       const totalDesglose = calcularTotal(desgloseEfectivo);
       if (totalDesglose !== monto) {
-        alert(`El desglose de efectivo ($${totalDesglose.toLocaleString()}) no coincide con el monto ($${monto.toLocaleString()}).\n\nPor favor ajusta las denominaciones.`);
+        alert(`El desglose de efectivo ($${formatCurrency(totalDesglose)}) no coincide con el monto ($${formatCurrency(monto)}).\n\nPor favor ajusta las denominaciones.`);
         return;
       }
     }
     
     // Confirmación para montos grandes
     if (monto > 1000000) {
-      if (!window.confirm(`MONTO ALTO: $${monto.toLocaleString()}\n\n¿Estás seguro de registrar este ${tipoMovimiento}?`)) {
+      if (!window.confirm(`MONTO ALTO: $${formatCurrency(monto)}\n\n¿Estás seguro de registrar este ${tipoMovimiento}?`)) {
         return;
       }
     }
@@ -792,7 +792,7 @@ function RegistrarMovimiento() {
                     Denominaciones Disponibles en Caja
                   </p>
                   <p className="text-xs text-blue-700">
-                    Total efectivo: <span className="font-bold">${inventarioDisponible.total_efectivo?.toLocaleString()}</span>
+                    Total efectivo: <span className="font-bold">${formatCurrency(inventarioDisponible.total_efectivo || 0)}</span>
                   </p>
                 </div>
               )}
@@ -1020,7 +1020,7 @@ function Historial() {
                     <td className={`p-3 text-right text-lg font-bold ${
                       mov.tipo === 'ingreso' ? 'text-green-600' : 'text-red-600'
                     }`}>
-                      {mov.tipo === 'ingreso' ? '+' : '-'}${Math.abs(mov.monto).toLocaleString()}
+                      {mov.tipo === 'ingreso' ? '+' : '-'}${formatCurrency(Math.abs(mov.monto))}
                     </td>
                     <td className="p-3 text-center">
                       {mov.tipo === 'egreso' && (
