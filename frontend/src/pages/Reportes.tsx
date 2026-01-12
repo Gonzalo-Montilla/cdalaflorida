@@ -77,6 +77,11 @@ export default function ReportesPage() {
     new Date().toISOString().split('T')[0]
   );
 
+  // Estados para filtros locales de movimientos
+  const [filtroTipo, setFiltroTipo] = useState<string>('todos');
+  const [filtroMetodo, setFiltroMetodo] = useState<string>('todos');
+  const [filtroConcepto, setFiltroConcepto] = useState<string>('');
+
   // Query principal: Dashboard general
   const { data, isLoading, isError } = useQuery<DashboardData>({
     queryKey: ['dashboard-general', fechaSeleccionada],
@@ -132,6 +137,25 @@ export default function ReportesPage() {
     },
     refetchInterval: 60000,
   });
+
+  // Filtrar movimientos localmente
+  const movimientosFiltrados = (movimientosData?.movimientos || []).filter((m: Movimiento) => {
+    const cumpleTipo = filtroTipo === 'todos' || m.tipo_movimiento === filtroTipo;
+    const cumpleMetodo = filtroMetodo === 'todos' || m.metodo_pago === filtroMetodo;
+    const cumpleConcepto = filtroConcepto === '' || m.concepto.toLowerCase().includes(filtroConcepto.toLowerCase());
+    return cumpleTipo && cumpleMetodo && cumpleConcepto;
+  });
+
+  // Obtener valores únicos para los filtros
+  const tiposUnicos: string[] = Array.from(new Set((movimientosData?.movimientos || []).map((m: Movimiento) => m.tipo_movimiento)));
+  const metodosUnicos: string[] = Array.from(new Set((movimientosData?.movimientos || []).map((m: Movimiento) => m.metodo_pago)));
+
+  // Función para limpiar filtros
+  const limpiarFiltros = () => {
+    setFiltroTipo('todos');
+    setFiltroMetodo('todos');
+    setFiltroConcepto('');
+  };
 
   // Función para exportar a CSV
   const exportarCSV = (datos: any[], nombreArchivo: string) => {
@@ -517,15 +541,76 @@ export default function ReportesPage() {
             <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
               <FileText className="w-6 h-6 text-primary-600" />
               {modoVista === 'dia' ? 'Movimientos del Día' : `Movimientos (${movimientosData?.fecha || ''})`}
+              <span className="text-sm text-gray-500 font-normal">
+                ({movimientosFiltrados.length} de {movimientosData?.total_movimientos || 0})
+              </span>
             </h3>
             <button 
               onClick={() => exportarCSV(movimientosData?.movimientos || [], 'movimientos_dia')}
-              className="flex items-center gap-2 px-4 py-2 bg-secondary-500 hover:bg-secondary-600 text-white font-semibold rounded-lg shadow-md transition-all duration-200 hover:shadow-lg"
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg shadow-md transition-all duration-200 hover:shadow-lg"
             >
               <Download className="w-5 h-5" />
               Exportar CSV
             </button>
           </div>
+
+          {/* Barra de Filtros */}
+          <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <div className="flex flex-wrap items-end gap-4">
+              <div className="flex-1 min-w-[200px]">
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Filtrar por Tipo:
+                </label>
+                <select
+                  value={filtroTipo}
+                  onChange={(e) => setFiltroTipo(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="todos">Todos</option>
+                  {tiposUnicos.map((tipo) => (
+                    <option key={tipo} value={tipo}>{tipo}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex-1 min-w-[200px]">
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Filtrar por Método de Pago:
+                </label>
+                <select
+                  value={filtroMetodo}
+                  onChange={(e) => setFiltroMetodo(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="todos">Todos</option>
+                  {metodosUnicos.map((metodo) => (
+                    <option key={metodo} value={metodo}>{metodo}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex-1 min-w-[200px]">
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Buscar por Concepto:
+                </label>
+                <input
+                  type="text"
+                  value={filtroConcepto}
+                  onChange={(e) => setFiltroConcepto(e.target.value)}
+                  placeholder="Escribir para buscar..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <button
+                onClick={limpiarFiltros}
+                className="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold rounded-lg transition-all"
+              >
+                Limpiar Filtros
+              </button>
+            </div>
+          </div>
+
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
@@ -542,7 +627,7 @@ export default function ReportesPage() {
                 </tr>
               </thead>
               <tbody>
-                {(movimientosData?.movimientos || []).map((m: Movimiento) => (
+                {movimientosFiltrados.map((m: Movimiento) => (
                   <tr key={m.id} className="border-t">
                     <td className="px-3 py-2">{m.hora}</td>
                     <td className="px-3 py-2">{m.modulo}</td>
@@ -582,15 +667,15 @@ export default function ReportesPage() {
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                 <CalendarDays className="w-6 h-6 text-primary-600" />
-                Desglose por Medios de Pago
+                Métodos de Pago
               </h3>
+              <p className="text-sm text-gray-600">Total recaudado por método</p>
             </div>
             <div className="space-y-2">
               {Object.entries(mediosPagoData?.medios_pago || {}).map(([metodo, vals]: any) => (
-                <div key={metodo} className="border rounded p-2">
-                  <div className="flex justify-between"><span className="font-semibold">{metodo}</span><span>Total: ${Number((vals as any).total).toLocaleString()}</span></div>
-                  <div className="flex justify-between text-green-700"><span>Ingresos</span><span className="font-semibold">${Number((vals as any).ingresos).toLocaleString()}</span></div>
-                  <div className="flex justify-between text-red-700"><span>Egresos</span><span className="font-semibold">${Number((vals as any).egresos).toLocaleString()}</span></div>
+                <div key={metodo} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
+                  <span className="font-semibold text-gray-700 capitalize">{metodo.replace('_', ' ')}:</span>
+                  <span className="text-xl font-bold text-green-600">${Number((vals as any).total).toLocaleString()}</span>
                 </div>
               ))}
             </div>
