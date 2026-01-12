@@ -5,6 +5,7 @@ import Layout from '../components/Layout';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ContadorEfectivo, { type DesgloseEfectivo } from '../components/ContadorEfectivo';
 import { tesoreriaApi } from '../api/tesoreria';
+import { formatCurrency } from '../utils/formatNumber';
 import {
   Vault,
   BarChart3,
@@ -703,15 +704,11 @@ function RegistrarMovimiento() {
                 style={{ width: '100%' }}
               />
             </div>
-            {formData.monto && parseFloat(formData.monto) > 0 && (() => {
-              const montoNum = parseFloat(formData.monto);
-              console.log('DEBUG Visualización:', { formDataMonto: formData.monto, parseado: montoNum, localizado: montoNum.toLocaleString('es-CO') });
-              return (
-                <p className="mt-2 text-lg text-center text-gray-700 font-semibold">
-                  Valor: <span className="text-primary-600">${montoNum.toLocaleString('es-CO')}</span>
-                </p>
-              );
-            })()}
+            {formData.monto && parseFloat(formData.monto) > 0 && (
+              <p className="mt-2 text-lg text-center text-gray-700 font-semibold">
+                Valor: <span className="text-primary-600">${formatCurrency(formData.monto)}</span>
+              </p>
+            )}
           </div>
 
           {/* Beneficiario (solo para egresos) */}

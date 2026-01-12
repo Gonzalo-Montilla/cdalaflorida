@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatCurrency } from '../utils/formatNumber';
 
 export interface DesgloseEfectivo {
   billetes_100000: number;
@@ -108,7 +109,7 @@ export default function ContadorEfectivo({ montoDeclarado, onChange, esEgreso = 
                 </span>
                 {subtotal > 0 && (
                   <span className="text-xs font-bold text-green-600">
-                    ${subtotal.toLocaleString()}
+                    ${formatCurrency(subtotal)}
                   </span>
                 )}
               </div>
@@ -150,7 +151,7 @@ export default function ContadorEfectivo({ montoDeclarado, onChange, esEgreso = 
         <div className="flex justify-between items-center mb-2">
           <span className="text-sm font-semibold text-gray-600">Monto declarado:</span>
           <span className="text-lg font-bold text-gray-900">
-            ${montoDeclarado.toLocaleString()}
+            ${formatCurrency(montoDeclarado)}
           </span>
         </div>
         
@@ -159,7 +160,7 @@ export default function ContadorEfectivo({ montoDeclarado, onChange, esEgreso = 
           <span className={`text-lg font-bold ${
             totalCalculado === 0 ? 'text-gray-400' : 'text-blue-600'
           }`}>
-            ${totalCalculado.toLocaleString()}
+            ${formatCurrency(totalCalculado)}
           </span>
         </div>
 
@@ -173,7 +174,7 @@ export default function ContadorEfectivo({ montoDeclarado, onChange, esEgreso = 
             <span className={`text-xl font-bold ${
               diferencia > 0 ? 'text-yellow-700' : 'text-red-700'
             }`}>
-              ${Math.abs(diferencia).toLocaleString()}
+              ${formatCurrency(Math.abs(diferencia))}
             </span>
           </div>
         )}
