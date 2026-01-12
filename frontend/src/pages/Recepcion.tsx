@@ -1,17 +1,25 @@
-import { useState, useEffect, type FormEvent } from 'react';
+import { useState, useEffect, useCallback, type FormEvent } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ClipboardList, Bike, DollarSign, CheckCircle2, XCircle, RotateCcw, Search, X, Calendar, CalendarDays, CalendarRange, BarChart3, Camera, Car } from 'lucide-react';
 import Layout from '../components/Layout';
 import LoadingSpinner from '../components/LoadingSpinner';
 import CapturaFotos from '../components/CapturaFotos';
 import ErrorBoundary from '../components/ErrorBoundary';
+import Toast, { type ToastType } from '../components/Toast';
 import { vehiculosApi, type TarifaCalculada } from '../api/vehiculos';
 import { tarifasApi } from '../api/tarifas';
 import type { VehiculoRegistro } from '../types';
 
+interface ToastState {
+  show: boolean;
+  type: ToastType;
+  title: string;
+  message?: string;
+}
+
 export default function Recepcion() {
   const queryClient = useQueryClient();
-  const [showSuccess, setShowSuccess] = useState(false);
+  const [toast, setToast] = useState<ToastState>({ show: false, type: 'success', title: '' });
   const [tarifaCalculada, setTarifaCalculada] = useState<TarifaCalculada | null>(null);
   const [fotosVehiculo, setFotosVehiculo] = useState<string[]>([]);
 
@@ -98,29 +106,46 @@ export default function Recepcion() {
     refetchInterval: 15000, // Actualizar cada 15 segundos
   });
 
-  // Mutación para registrar vehículo
+  // Mutación para registrar vehículo - VERSIÓN ESTABLE
   const registrarMutation = useMutation({
     mutationFn: vehiculosApi.registrar,
     onSuccess: () => {
-      // Mostrar mensaje de éxito ANTES de limpiar
-      setShowSuccess(true);
+      const cantidadFotos = fotosVehiculo.length;
       
-      // Dar tiempo suficiente para que React complete el ciclo de renderizado
+      // 1. Mostrar notificación de éxito INMEDIATAMENTE
+      setToast({
+        show: true,
+        type: 'success',
+        title: '¡Vehículo registrado exitosamente!',
+        message: cantidadFotos > 0 
+          ? `${cantidadFotos} foto${cantidadFotos !== 1 ? 's' : ''} adjuntada${cantidadFotos !== 1 ? 's' : ''}`
+          : undefined
+      });
+      
+      // 2. Limpiar formulario después de un momento (para que el toast capture los datos)
       setTimeout(() => {
-        // Limpiar formulario
         setFotosVehiculo([]);
         resetForm();
-        
-        // Invalidar queries después de limpiar estado
+      }, 100);
+      
+      // 3. Refrescar datos con un pequeño delay (React 17 necesita esto)
+      setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: ['vehiculos-hoy'] });
         queryClient.invalidateQueries({ queryKey: ['vehiculos-count'] });
         queryClient.invalidateQueries({ queryKey: ['vehiculos'] });
         queryClient.invalidateQueries({ queryKey: ['vehiculos-pendientes'] });
       }, 300);
-      
-      // Ocultar mensaje de éxito
-      setTimeout(() => setShowSuccess(false), 5000);
     },
+    onError: (error: any) => {
+      // Manejo de errores robusto
+      const errorMessage = error?.response?.data?.detail || 'Error al registrar el vehículo';
+      setToast({
+        show: true,
+        type: 'error',
+        title: 'Error al registrar vehículo',
+        message: typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage)
+      });
+    }
   });
 
   // Calcular tarifa cuando cambia el año del modelo o el tipo de vehículo
@@ -220,6 +245,17 @@ export default function Recepcion() {
 
   return (
     <Layout title="Módulo de Recepción">
+      {/* Sistema de notificaciones profesional */}
+      {toast.show && (
+        <Toast
+          type={toast.type}
+          title={toast.title}
+          message={toast.message}
+          duration={5000}
+          onClose={() => setToast({ ...toast, show: false })}
+        />
+      )}
+
       <div className="mb-6">
         <h2 className="text-3xl font-bold text-gray-900 mb-2 flex items-center gap-3">
           <ClipboardList className="w-8 h-8 text-primary-600" />
@@ -236,39 +272,7 @@ export default function Recepcion() {
           <form onSubmit={handleSubmit} className="card-pos">
             <h3 className="text-xl font-bold text-gray-900 mb-6">Datos del Vehículo y Cliente</h3>
 
-            {/* Mensajes de estado */}
-            {showSuccess && (
-              <div className="bg-green-50 border-2 border-green-200 rounded-lg p-4 mb-6">
-                <p className="text-green-800 font-semibold text-center flex items-center justify-center gap-2">
-                  <CheckCircle2 className="w-5 h-5" />
-                  Vehículo registrado exitosamente
-                </p>
-                {fotosVehiculo.length > 0 && (
-                  <p className="text-green-700 text-sm text-center mt-1 flex items-center justify-center gap-2">
-                    <Camera className="w-4 h-4" />
-                    {fotosVehiculo.length} foto{fotosVehiculo.length !== 1 ? 's' : ''} adjuntada{fotosVehiculo.length !== 1 ? 's' : ''}
-                  </p>
-                )}
-              </div>
-            )}
-
-            {registrarMutation.isError && (
-              <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4 mb-6">
-                <p className="text-red-800 font-semibold text-center flex items-center justify-center gap-2">
-                  <XCircle className="w-5 h-5" />
-                  {(() => {
-                    const error = (registrarMutation.error as any)?.response?.data;
-                    if (typeof error?.detail === 'string') {
-                      return error.detail;
-                    }
-                    if (Array.isArray(error?.detail)) {
-                      return error.detail.map((e: any) => e.msg || JSON.stringify(e)).join(', ');
-                    }
-                    return 'Error al registrar vehículo';
-                  })()}
-                </p>
-              </div>
-            )}
+            {/* Los mensajes de éxito y error ahora se manejan con el componente Toast */}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Placa */}

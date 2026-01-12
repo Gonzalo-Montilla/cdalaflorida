@@ -36,7 +36,8 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <AuthProvider>
-          <Routes>
+          <ErrorBoundary>
+            <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route
@@ -96,7 +97,8 @@ function App() {
               }
             />
             <Route path="/" element={<Navigate to="/dashboard" />} />
-          </Routes>
+            </Routes>
+          </ErrorBoundary>
         </AuthProvider>
       </BrowserRouter>
     </QueryClientProvider>
