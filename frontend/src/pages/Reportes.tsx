@@ -546,7 +546,7 @@ export default function ReportesPage() {
               </span>
             </h3>
             <button 
-              onClick={() => exportarCSV(movimientosData?.movimientos || [], 'movimientos_dia')}
+              onClick={() => exportarCSV(movimientosFiltrados, 'movimientos_dia')}
               className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg shadow-md transition-all duration-200 hover:shadow-lg"
             >
               <Download className="w-5 h-5" />
