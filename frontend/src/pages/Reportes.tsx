@@ -107,9 +107,12 @@ export default function ReportesPage() {
 
   // Query: Desglose por conceptos
   const { data: conceptosData } = useQuery({
-    queryKey: ['desglose-conceptos', fechaSeleccionada],
+    queryKey: ['desglose-conceptos', modoVista, fechaSeleccionada, fechaInicio, fechaFin],
     queryFn: async () => {
-      const response = await apiClient.get(`/reportes/desglose-conceptos?fecha=${fechaSeleccionada}`);
+      const params = modoVista === 'rango' 
+        ? `fecha_inicio=${fechaInicio}&fecha_fin=${fechaFin}`
+        : `fecha=${fechaSeleccionada}`;
+      const response = await apiClient.get(`/reportes/desglose-conceptos?${params}`);
       return response.data;
     },
     refetchInterval: 60000,
@@ -117,9 +120,12 @@ export default function ReportesPage() {
 
   // Query: Desglose por medios de pago
   const { data: mediosPagoData } = useQuery({
-    queryKey: ['desglose-medios-pago', fechaSeleccionada],
+    queryKey: ['desglose-medios-pago', modoVista, fechaSeleccionada, fechaInicio, fechaFin],
     queryFn: async () => {
-      const response = await apiClient.get(`/reportes/desglose-medios-pago?fecha=${fechaSeleccionada}`);
+      const params = modoVista === 'rango' 
+        ? `fecha_inicio=${fechaInicio}&fecha_fin=${fechaFin}`
+        : `fecha=${fechaSeleccionada}`;
+      const response = await apiClient.get(`/reportes/desglose-medios-pago?${params}`);
       return response.data;
     },
     refetchInterval: 60000,

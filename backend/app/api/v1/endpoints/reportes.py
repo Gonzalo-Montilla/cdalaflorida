@@ -277,19 +277,28 @@ def obtener_movimientos_detallados(
 @router.get("/desglose-conceptos")
 def obtener_desglose_conceptos(
     fecha: Optional[date] = Query(None, description="Fecha específica (default: hoy)"),
+    fecha_inicio: Optional[date] = Query(None, description="Fecha inicio para rango"),
+    fecha_fin: Optional[date] = Query(None, description="Fecha fin para rango"),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_admin)
 ):
     """
     Desglose de ingresos y egresos por concepto/categoría
+    Soporta modo día único o rango de fechas
     """
-    # Si no se especifica fecha, usar hoy
-    if not fecha:
-        fecha = date.today()
-    
-    # Convertir a datetime para consultas
-    fecha_inicio = datetime.combine(fecha, datetime.min.time())
-    fecha_fin = datetime.combine(fecha, datetime.max.time())
+    # Determinar rango de fechas
+    if fecha_inicio and fecha_fin:
+        # Modo rango
+        fecha_inicio_dt = datetime.combine(fecha_inicio, datetime.min.time())
+        fecha_fin_dt = datetime.combine(fecha_fin, datetime.max.time())
+        etiqueta_fecha = f"{fecha_inicio.strftime('%Y-%m-%d')} a {fecha_fin.strftime('%Y-%m-%d')}"
+    else:
+        # Modo día único
+        if not fecha:
+            fecha = date.today()
+        fecha_inicio_dt = datetime.combine(fecha, datetime.min.time())
+        fecha_fin_dt = datetime.combine(fecha, datetime.max.time())
+        etiqueta_fecha = fecha.strftime("%Y-%m-%d")
     
     # ==================== INGRESOS POR CONCEPTO ====================
     ingresos_por_concepto = {}
@@ -299,8 +308,8 @@ def obtener_desglose_conceptos(
     for tipo in TipoMovimiento:
         total = db.query(func.sum(MovimientoCaja.monto)).filter(
             and_(
-                MovimientoCaja.created_at >= fecha_inicio,
-                MovimientoCaja.created_at <= fecha_fin,
+                MovimientoCaja.created_at >= fecha_inicio_dt,
+                MovimientoCaja.created_at <= fecha_fin_dt,
                 MovimientoCaja.tipo == tipo,
                 MovimientoCaja.monto > 0
             )
@@ -314,8 +323,8 @@ def obtener_desglose_conceptos(
     for cat in CategoriaIngresoTesoreria:
         total = db.query(func.sum(MovimientoTesoreria.monto)).filter(
             and_(
-                MovimientoTesoreria.fecha_movimiento >= fecha_inicio,
-                MovimientoTesoreria.fecha_movimiento <= fecha_fin,
+                MovimientoTesoreria.fecha_movimiento >= fecha_inicio_dt,
+                MovimientoTesoreria.fecha_movimiento <= fecha_fin_dt,
                 MovimientoTesoreria.categoria_ingreso == cat,
                 MovimientoTesoreria.monto > 0
             )
@@ -331,8 +340,8 @@ def obtener_desglose_conceptos(
     for tipo in TipoMovimiento:
         total = db.query(func.sum(MovimientoCaja.monto)).filter(
             and_(
-                MovimientoCaja.created_at >= fecha_inicio,
-                MovimientoCaja.created_at <= fecha_fin,
+                MovimientoCaja.created_at >= fecha_inicio_dt,
+                MovimientoCaja.created_at <= fecha_fin_dt,
                 MovimientoCaja.tipo == tipo,
                 MovimientoCaja.monto < 0
             )
@@ -346,8 +355,8 @@ def obtener_desglose_conceptos(
     for cat in CategoriaEgresoTesoreria:
         total = db.query(func.sum(MovimientoTesoreria.monto)).filter(
             and_(
-                MovimientoTesoreria.fecha_movimiento >= fecha_inicio,
-                MovimientoTesoreria.fecha_movimiento <= fecha_fin,
+                MovimientoTesoreria.fecha_movimiento >= fecha_inicio_dt,
+                MovimientoTesoreria.fecha_movimiento <= fecha_fin_dt,
                 MovimientoTesoreria.categoria_egreso == cat,
                 MovimientoTesoreria.monto < 0
             )
@@ -357,7 +366,7 @@ def obtener_desglose_conceptos(
             egresos_por_concepto[f"Tesorería - {cat.value}"] = float(abs(total))
     
     return {
-        "fecha": fecha.strftime("%Y-%m-%d"),
+        "fecha": etiqueta_fecha,
         "ingresos_por_concepto": ingresos_por_concepto,
         "egresos_por_concepto": egresos_por_concepto
     }
@@ -366,19 +375,28 @@ def obtener_desglose_conceptos(
 @router.get("/desglose-medios-pago")
 def obtener_desglose_medios_pago(
     fecha: Optional[date] = Query(None, description="Fecha específica (default: hoy)"),
+    fecha_inicio: Optional[date] = Query(None, description="Fecha inicio para rango"),
+    fecha_fin: Optional[date] = Query(None, description="Fecha fin para rango"),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_admin)
 ):
     """
     Desglose de movimientos por medio de pago
+    Soporta modo día único o rango de fechas
     """
-    # Si no se especifica fecha, usar hoy
-    if not fecha:
-        fecha = date.today()
-    
-    # Convertir a datetime para consultas
-    fecha_inicio = datetime.combine(fecha, datetime.min.time())
-    fecha_fin = datetime.combine(fecha, datetime.max.time())
+    # Determinar rango de fechas
+    if fecha_inicio and fecha_fin:
+        # Modo rango
+        fecha_inicio_dt = datetime.combine(fecha_inicio, datetime.min.time())
+        fecha_fin_dt = datetime.combine(fecha_fin, datetime.max.time())
+        etiqueta_fecha = f"{fecha_inicio.strftime('%Y-%m-%d')} a {fecha_fin.strftime('%Y-%m-%d')}"
+    else:
+        # Modo día único
+        if not fecha:
+            fecha = date.today()
+        fecha_inicio_dt = datetime.combine(fecha, datetime.min.time())
+        fecha_fin_dt = datetime.combine(fecha, datetime.max.time())
+        etiqueta_fecha = fecha.strftime("%Y-%m-%d")
     
     desglose = {}
     
@@ -389,8 +407,8 @@ def obtener_desglose_medios_pago(
         func.sum(MovimientoCaja.monto).label("total")
     ).filter(
         and_(
-            MovimientoCaja.created_at >= fecha_inicio,
-            MovimientoCaja.created_at <= fecha_fin,
+            MovimientoCaja.created_at >= fecha_inicio_dt,
+            MovimientoCaja.created_at <= fecha_fin_dt,
             MovimientoCaja.metodo_pago.isnot(None)
         )
     ).group_by(MovimientoCaja.metodo_pago).all()
@@ -411,8 +429,8 @@ def obtener_desglose_medios_pago(
         func.sum(MovimientoTesoreria.monto).label("total")
     ).filter(
         and_(
-            MovimientoTesoreria.fecha_movimiento >= fecha_inicio,
-            MovimientoTesoreria.fecha_movimiento <= fecha_fin
+            MovimientoTesoreria.fecha_movimiento >= fecha_inicio_dt,
+            MovimientoTesoreria.fecha_movimiento <= fecha_fin_dt
         )
     ).group_by(MovimientoTesoreria.metodo_pago).all()
     
@@ -428,7 +446,7 @@ def obtener_desglose_medios_pago(
         desglose[metodo]["total"] += float(total)
     
     return {
-        "fecha": fecha.strftime("%Y-%m-%d"),
+        "fecha": etiqueta_fecha,
         "medios_pago": desglose
     }
 
