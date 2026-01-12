@@ -36,23 +36,21 @@ def obtener_dashboard_general(
     
     # ==================== INGRESOS DEL DÍA ====================
     
-    # Ingresos de Caja (todos los montos positivos, excluir anulados)
+    # Ingresos de Caja (todos los montos positivos)
     ingresos_caja = db.query(func.sum(MovimientoCaja.monto)).filter(
         and_(
             MovimientoCaja.created_at >= fecha_inicio,
             MovimientoCaja.created_at <= fecha_fin,
-            MovimientoCaja.monto > 0,
-            MovimientoCaja.anulado == False
+            MovimientoCaja.monto > 0
         )
     ).scalar() or Decimal(0)
     
-    # Ingresos de Tesorería (todos los montos positivos, excluir anulados)
+    # Ingresos de Tesorería (todos los montos positivos)
     ingresos_tesoreria = db.query(func.sum(MovimientoTesoreria.monto)).filter(
         and_(
             MovimientoTesoreria.fecha_movimiento >= fecha_inicio,
             MovimientoTesoreria.fecha_movimiento <= fecha_fin,
-            MovimientoTesoreria.monto > 0,
-            MovimientoTesoreria.anulado == False
+            MovimientoTesoreria.monto > 0
         )
     ).scalar() or Decimal(0)
     
@@ -60,23 +58,21 @@ def obtener_dashboard_general(
     
     # ==================== EGRESOS DEL DÍA ====================
     
-    # Egresos de Caja (todos los montos negativos, excluir anulados)
+    # Egresos de Caja (todos los montos negativos)
     egresos_caja = db.query(func.sum(MovimientoCaja.monto)).filter(
         and_(
             MovimientoCaja.created_at >= fecha_inicio,
             MovimientoCaja.created_at <= fecha_fin,
-            MovimientoCaja.monto < 0,
-            MovimientoCaja.anulado == False
+            MovimientoCaja.monto < 0
         )
     ).scalar() or Decimal(0)
     
-    # Egresos de Tesorería (todos los montos negativos, excluir anulados)
+    # Egresos de Tesorería (todos los montos negativos)
     egresos_tesoreria = db.query(func.sum(MovimientoTesoreria.monto)).filter(
         and_(
             MovimientoTesoreria.fecha_movimiento >= fecha_inicio,
             MovimientoTesoreria.fecha_movimiento <= fecha_fin,
-            MovimientoTesoreria.monto < 0,
-            MovimientoTesoreria.anulado == False
+            MovimientoTesoreria.monto < 0
         )
     ).scalar() or Decimal(0)
     
@@ -84,15 +80,11 @@ def obtener_dashboard_general(
     
     # ==================== SALDO TOTAL DISPONIBLE ====================
     
-    # Saldo en todas las cajas (excluir anulados)
-    saldo_cajas = db.query(func.sum(MovimientoCaja.monto)).filter(
-        MovimientoCaja.anulado == False
-    ).scalar() or Decimal(0)
+    # Saldo en todas las cajas
+    saldo_cajas = db.query(func.sum(MovimientoCaja.monto)).scalar() or Decimal(0)
     
-    # Saldo en tesorería (excluir anulados)
-    saldo_tesoreria = db.query(func.sum(MovimientoTesoreria.monto)).filter(
-        MovimientoTesoreria.anulado == False
-    ).scalar() or Decimal(0)
+    # Saldo en tesorería
+    saldo_tesoreria = db.query(func.sum(MovimientoTesoreria.monto)).scalar() or Decimal(0)
     
     saldo_total = float(saldo_cajas + saldo_tesoreria)
     
@@ -113,23 +105,21 @@ def obtener_dashboard_general(
         dia_inicio = datetime.combine(dia, datetime.min.time())
         dia_fin = datetime.combine(dia, datetime.max.time())
         
-        # Ingresos de caja del día (excluir anulados)
+        # Ingresos de caja del día
         ing_caja = db.query(func.sum(MovimientoCaja.monto)).filter(
             and_(
                 MovimientoCaja.created_at >= dia_inicio,
                 MovimientoCaja.created_at <= dia_fin,
-                MovimientoCaja.monto > 0,
-                MovimientoCaja.anulado == False
+                MovimientoCaja.monto > 0
             )
         ).scalar() or Decimal(0)
         
-        # Ingresos de tesorería del día (excluir anulados)
+        # Ingresos de tesorería del día
         ing_tesoreria = db.query(func.sum(MovimientoTesoreria.monto)).filter(
             and_(
                 MovimientoTesoreria.fecha_movimiento >= dia_inicio,
                 MovimientoTesoreria.fecha_movimiento <= dia_fin,
-                MovimientoTesoreria.monto > 0,
-                MovimientoTesoreria.anulado == False
+                MovimientoTesoreria.monto > 0
             )
         ).scalar() or Decimal(0)
         
@@ -161,8 +151,8 @@ def obtener_dashboard_general(
         "resumen": {
             "total_ingresos_dia": total_ingresos_dia,
             "total_egresos_dia": total_egresos_dia,
-            "balance_neto_dia": total_ingresos_dia - total_egresos_dia,  # Cambiado de utilidad_dia
-            "saldo_disponible": saldo_total,  # Cambiado de saldo_total
+            "utilidad_dia": total_ingresos_dia - total_egresos_dia,
+            "saldo_total": saldo_total,
             "tramites_atendidos": tramites_dia
         },
         "desglose_modulos": desglose_modulos,
@@ -201,8 +191,7 @@ def obtener_movimientos_detallados(
     movimientos_caja = db.query(MovimientoCaja).filter(
         and_(
             MovimientoCaja.created_at >= fecha_inicio_dt,
-            MovimientoCaja.created_at <= fecha_fin_dt,
-            MovimientoCaja.anulado == False
+            MovimientoCaja.created_at <= fecha_fin_dt
         )
     ).order_by(MovimientoCaja.created_at.asc()).all()
     
@@ -236,8 +225,7 @@ def obtener_movimientos_detallados(
     movimientos_tesoreria = db.query(MovimientoTesoreria).filter(
         and_(
             MovimientoTesoreria.fecha_movimiento >= fecha_inicio_dt,
-            MovimientoTesoreria.fecha_movimiento <= fecha_fin_dt,
-            MovimientoTesoreria.anulado == False
+            MovimientoTesoreria.fecha_movimiento <= fecha_fin_dt
         )
     ).order_by(MovimientoTesoreria.fecha_movimiento.asc()).all()
     
@@ -289,58 +277,47 @@ def obtener_movimientos_detallados(
 @router.get("/desglose-conceptos")
 def obtener_desglose_conceptos(
     fecha: Optional[date] = Query(None, description="Fecha específica (default: hoy)"),
-    fecha_inicio: Optional[date] = Query(None, description="Fecha inicio para rango"),
-    fecha_fin: Optional[date] = Query(None, description="Fecha fin para rango"),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_admin)
 ):
     """
     Desglose de ingresos y egresos por concepto/categoría
-    Soporta modo día único o rango de fechas
     """
-    # Determinar rango de fechas
-    if fecha_inicio and fecha_fin:
-        # Modo rango
-        fecha_inicio_dt = datetime.combine(fecha_inicio, datetime.min.time())
-        fecha_fin_dt = datetime.combine(fecha_fin, datetime.max.time())
-        etiqueta_fecha = f"{fecha_inicio.strftime('%Y-%m-%d')} a {fecha_fin.strftime('%Y-%m-%d')}"
-    else:
-        # Modo día único
-        if not fecha:
-            fecha = date.today()
-        fecha_inicio_dt = datetime.combine(fecha, datetime.min.time())
-        fecha_fin_dt = datetime.combine(fecha, datetime.max.time())
-        etiqueta_fecha = fecha.strftime("%Y-%m-%d")
+    # Si no se especifica fecha, usar hoy
+    if not fecha:
+        fecha = date.today()
+    
+    # Convertir a datetime para consultas
+    fecha_inicio = datetime.combine(fecha, datetime.min.time())
+    fecha_fin = datetime.combine(fecha, datetime.max.time())
     
     # ==================== INGRESOS POR CONCEPTO ====================
     ingresos_por_concepto = {}
     
-    # Ingresos de Caja (agrupar por tipo, excluir anulados)
+    # Ingresos de Caja (agrupar por tipo)
     from app.models.caja import TipoMovimiento
     for tipo in TipoMovimiento:
         total = db.query(func.sum(MovimientoCaja.monto)).filter(
             and_(
-                MovimientoCaja.created_at >= fecha_inicio_dt,
-                MovimientoCaja.created_at <= fecha_fin_dt,
+                MovimientoCaja.created_at >= fecha_inicio,
+                MovimientoCaja.created_at <= fecha_fin,
                 MovimientoCaja.tipo == tipo,
-                MovimientoCaja.monto > 0,
-                MovimientoCaja.anulado == False
+                MovimientoCaja.monto > 0
             )
         ).scalar() or Decimal(0)
         
         if total > 0:
             ingresos_por_concepto[f"Caja - {tipo.value}"] = float(total)
     
-    # Ingresos de Tesorería (agrupar por categoría, excluir anulados)
+    # Ingresos de Tesorería (agrupar por categoría)
     from app.models.tesoreria import CategoriaIngresoTesoreria
     for cat in CategoriaIngresoTesoreria:
         total = db.query(func.sum(MovimientoTesoreria.monto)).filter(
             and_(
-                MovimientoTesoreria.fecha_movimiento >= fecha_inicio_dt,
-                MovimientoTesoreria.fecha_movimiento <= fecha_fin_dt,
+                MovimientoTesoreria.fecha_movimiento >= fecha_inicio,
+                MovimientoTesoreria.fecha_movimiento <= fecha_fin,
                 MovimientoTesoreria.categoria_ingreso == cat,
-                MovimientoTesoreria.monto > 0,
-                MovimientoTesoreria.anulado == False
+                MovimientoTesoreria.monto > 0
             )
         ).scalar() or Decimal(0)
         
@@ -350,31 +327,29 @@ def obtener_desglose_conceptos(
     # ==================== EGRESOS POR CONCEPTO ====================
     egresos_por_concepto = {}
     
-    # Egresos de Caja (excluir anulados)
+    # Egresos de Caja
     for tipo in TipoMovimiento:
         total = db.query(func.sum(MovimientoCaja.monto)).filter(
             and_(
-                MovimientoCaja.created_at >= fecha_inicio_dt,
-                MovimientoCaja.created_at <= fecha_fin_dt,
+                MovimientoCaja.created_at >= fecha_inicio,
+                MovimientoCaja.created_at <= fecha_fin,
                 MovimientoCaja.tipo == tipo,
-                MovimientoCaja.monto < 0,
-                MovimientoCaja.anulado == False
+                MovimientoCaja.monto < 0
             )
         ).scalar() or Decimal(0)
         
         if total < 0:
             egresos_por_concepto[f"Caja - {tipo.value}"] = float(abs(total))
     
-    # Egresos de Tesorería (excluir anulados)
+    # Egresos de Tesorería
     from app.models.tesoreria import CategoriaEgresoTesoreria
     for cat in CategoriaEgresoTesoreria:
         total = db.query(func.sum(MovimientoTesoreria.monto)).filter(
             and_(
-                MovimientoTesoreria.fecha_movimiento >= fecha_inicio_dt,
-                MovimientoTesoreria.fecha_movimiento <= fecha_fin_dt,
+                MovimientoTesoreria.fecha_movimiento >= fecha_inicio,
+                MovimientoTesoreria.fecha_movimiento <= fecha_fin,
                 MovimientoTesoreria.categoria_egreso == cat,
-                MovimientoTesoreria.monto < 0,
-                MovimientoTesoreria.anulado == False
+                MovimientoTesoreria.monto < 0
             )
         ).scalar() or Decimal(0)
         
@@ -382,7 +357,7 @@ def obtener_desglose_conceptos(
             egresos_por_concepto[f"Tesorería - {cat.value}"] = float(abs(total))
     
     return {
-        "fecha": etiqueta_fecha,
+        "fecha": fecha.strftime("%Y-%m-%d"),
         "ingresos_por_concepto": ingresos_por_concepto,
         "egresos_por_concepto": egresos_por_concepto
     }
@@ -391,71 +366,69 @@ def obtener_desglose_conceptos(
 @router.get("/desglose-medios-pago")
 def obtener_desglose_medios_pago(
     fecha: Optional[date] = Query(None, description="Fecha específica (default: hoy)"),
-    fecha_inicio: Optional[date] = Query(None, description="Fecha inicio para rango"),
-    fecha_fin: Optional[date] = Query(None, description="Fecha fin para rango"),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_admin)
 ):
     """
-    Desglose de montos totales por método de pago (solo ingresos - cobros)
-    Soporta modo día único o rango de fechas
+    Desglose de movimientos por medio de pago
     """
-    # Determinar rango de fechas
-    if fecha_inicio and fecha_fin:
-        # Modo rango
-        fecha_inicio_dt = datetime.combine(fecha_inicio, datetime.min.time())
-        fecha_fin_dt = datetime.combine(fecha_fin, datetime.max.time())
-        etiqueta_fecha = f"{fecha_inicio.strftime('%Y-%m-%d')} a {fecha_fin.strftime('%Y-%m-%d')}"
-    else:
-        # Modo día único
-        if not fecha:
-            fecha = date.today()
-        fecha_inicio_dt = datetime.combine(fecha, datetime.min.time())
-        fecha_fin_dt = datetime.combine(fecha, datetime.max.time())
-        etiqueta_fecha = fecha.strftime("%Y-%m-%d")
+    # Si no se especifica fecha, usar hoy
+    if not fecha:
+        fecha = date.today()
+    
+    # Convertir a datetime para consultas
+    fecha_inicio = datetime.combine(fecha, datetime.min.time())
+    fecha_fin = datetime.combine(fecha, datetime.max.time())
     
     desglose = {}
     
-    # ==================== MEDIOS DE PAGO EN CAJA (SOLO INGRESOS, EXCLUIR ANULADOS) ====================
+    # ==================== MEDIOS DE PAGO EN CAJA ====================
+    # Agrupar por metodo_pago
     medios_caja = db.query(
         MovimientoCaja.metodo_pago,
         func.sum(MovimientoCaja.monto).label("total")
     ).filter(
         and_(
-            MovimientoCaja.created_at >= fecha_inicio_dt,
-            MovimientoCaja.created_at <= fecha_fin_dt,
-            MovimientoCaja.metodo_pago.isnot(None),
-            MovimientoCaja.monto > 0,  # Solo ingresos
-            MovimientoCaja.anulado == False
+            MovimientoCaja.created_at >= fecha_inicio,
+            MovimientoCaja.created_at <= fecha_fin,
+            MovimientoCaja.metodo_pago.isnot(None)
         )
     ).group_by(MovimientoCaja.metodo_pago).all()
     
     for metodo, total in medios_caja:
         if metodo not in desglose:
-            desglose[metodo] = 0
-        desglose[metodo] += float(total)
+            desglose[metodo] = {"ingresos": 0, "egresos": 0, "total": 0}
+        
+        if total > 0:
+            desglose[metodo]["ingresos"] += float(total)
+        else:
+            desglose[metodo]["egresos"] += float(abs(total))
+        desglose[metodo]["total"] += float(total)
     
-    # ==================== MEDIOS DE PAGO EN TESORERÍA (SOLO INGRESOS, EXCLUIR ANULADOS) ====================
+    # ==================== MEDIOS DE PAGO EN TESORERÍA ====================
     medios_tesoreria = db.query(
         MovimientoTesoreria.metodo_pago,
         func.sum(MovimientoTesoreria.monto).label("total")
     ).filter(
         and_(
-            MovimientoTesoreria.fecha_movimiento >= fecha_inicio_dt,
-            MovimientoTesoreria.fecha_movimiento <= fecha_fin_dt,
-            MovimientoTesoreria.monto > 0,  # Solo ingresos
-            MovimientoTesoreria.anulado == False
+            MovimientoTesoreria.fecha_movimiento >= fecha_inicio,
+            MovimientoTesoreria.fecha_movimiento <= fecha_fin
         )
     ).group_by(MovimientoTesoreria.metodo_pago).all()
     
     for metodo_enum, total in medios_tesoreria:
         metodo = metodo_enum.value
         if metodo not in desglose:
-            desglose[metodo] = 0
-        desglose[metodo] += float(total)
+            desglose[metodo] = {"ingresos": 0, "egresos": 0, "total": 0}
+        
+        if total > 0:
+            desglose[metodo]["ingresos"] += float(total)
+        else:
+            desglose[metodo]["egresos"] += float(abs(total))
+        desglose[metodo]["total"] += float(total)
     
     return {
-        "fecha": etiqueta_fecha,
+        "fecha": fecha.strftime("%Y-%m-%d"),
         "medios_pago": desglose
     }
 
@@ -501,7 +474,7 @@ def obtener_tramites_detallados(
             "valor_rtm": float(veh.valor_rtm),
             "comision_soat": float(veh.comision_soat),
             "total_cobrado": float(veh.total_cobrado),
-            "metodo_pago": veh.metodo_pago if veh.metodo_pago else "Pendiente",
+            "metodo_pago": veh.metodo_pago.value if veh.metodo_pago else "Pendiente",
             "estado": veh.estado.value,
             "pagado": veh.estado.value in ["pagado", "en_pista", "aprobado", "rechazado", "completado"],
             "registrado_por": veh.registrador.nombre_completo if veh.registrador else "N/A"
@@ -555,13 +528,12 @@ def obtener_resumen_mensual(
     else:
         fecha_fin = datetime(anio, mes + 1, 1) - timedelta(seconds=1)
     
-    # Ingresos del mes (excluir anulados)
+    # Ingresos del mes
     ingresos_caja = db.query(func.sum(MovimientoCaja.monto)).filter(
         and_(
             MovimientoCaja.created_at >= fecha_inicio,
             MovimientoCaja.created_at <= fecha_fin,
-            MovimientoCaja.monto > 0,
-            MovimientoCaja.anulado == False
+            MovimientoCaja.monto > 0
         )
     ).scalar() or Decimal(0)
     
@@ -569,20 +541,18 @@ def obtener_resumen_mensual(
         and_(
             MovimientoTesoreria.fecha_movimiento >= fecha_inicio,
             MovimientoTesoreria.fecha_movimiento <= fecha_fin,
-            MovimientoTesoreria.monto > 0,
-            MovimientoTesoreria.anulado == False
+            MovimientoTesoreria.monto > 0
         )
     ).scalar() or Decimal(0)
     
     total_ingresos = float(ingresos_caja + ingresos_tesoreria)
     
-    # Egresos del mes (excluir anulados)
+    # Egresos del mes
     egresos_caja = db.query(func.sum(MovimientoCaja.monto)).filter(
         and_(
             MovimientoCaja.created_at >= fecha_inicio,
             MovimientoCaja.created_at <= fecha_fin,
-            MovimientoCaja.monto < 0,
-            MovimientoCaja.anulado == False
+            MovimientoCaja.monto < 0
         )
     ).scalar() or Decimal(0)
     
@@ -590,8 +560,7 @@ def obtener_resumen_mensual(
         and_(
             MovimientoTesoreria.fecha_movimiento >= fecha_inicio,
             MovimientoTesoreria.fecha_movimiento <= fecha_fin,
-            MovimientoTesoreria.monto < 0,
-            MovimientoTesoreria.anulado == False
+            MovimientoTesoreria.monto < 0
         )
     ).scalar() or Decimal(0)
     
