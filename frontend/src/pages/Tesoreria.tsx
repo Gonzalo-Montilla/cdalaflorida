@@ -695,18 +695,23 @@ function RegistrarMovimiento() {
                 type="number"
                 value={formData.monto}
                 onChange={(e) => setFormData({ ...formData, monto: e.target.value })}
-                className="input-pos text-2xl text-center font-bold pl-12"
+                className="input-pos text-2xl text-left font-bold pl-12 pr-4"
                 placeholder="Ejemplo: 2000000"
                 step="1"
                 min="1"
                 required
+                style={{ width: '100%' }}
               />
             </div>
-            {formData.monto && parseFloat(formData.monto) > 0 && (
-              <p className="mt-2 text-lg text-center text-gray-700 font-semibold">
-                Valor: <span className="text-primary-600">${parseFloat(formData.monto).toLocaleString()}</span>
-              </p>
-            )}
+            {formData.monto && parseFloat(formData.monto) > 0 && (() => {
+              const montoNum = parseFloat(formData.monto);
+              console.log('DEBUG Visualización:', { formDataMonto: formData.monto, parseado: montoNum, localizado: montoNum.toLocaleString('es-CO') });
+              return (
+                <p className="mt-2 text-lg text-center text-gray-700 font-semibold">
+                  Valor: <span className="text-primary-600">${montoNum.toLocaleString('es-CO')}</span>
+                </p>
+              );
+            })()}
           </div>
 
           {/* Beneficiario (solo para egresos) */}
