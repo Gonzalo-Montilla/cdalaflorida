@@ -4,6 +4,7 @@ import * as XLSX from 'xlsx';
 import Layout from '../components/Layout';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ContadorEfectivo, { type DesgloseEfectivo } from '../components/ContadorEfectivo';
+import NotificacionesCierreCaja from '../components/NotificacionesCierreCaja';
 import { tesoreriaApi } from '../api/tesoreria';
 import { formatCurrency } from '../utils/formatNumber';
 import {
@@ -145,6 +146,9 @@ function Dashboard() {
 
   return (
     <div className="space-y-6">
+      {/* Notificaciones de cierre de caja */}
+      <NotificacionesCierreCaja />
+
       {/* Alerta de saldo bajo */}
       {alertaSaldoBajo && (
         <div className="bg-red-50 border-2 border-red-400 rounded-xl p-4">
