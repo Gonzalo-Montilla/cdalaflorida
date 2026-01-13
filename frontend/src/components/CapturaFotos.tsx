@@ -28,22 +28,37 @@ export default function CapturaFotos({ onFotosChange, maxFotos = 4, fotos: fotos
   useEffect(() => {
     return () => {
       if (stream) {
+        // Detener todos los tracks
         stream.getTracks().forEach(track => track.stop());
+        // Limpiar srcObject del video si existe
+        if (videoRef.current) {
+          videoRef.current.srcObject = null;
+        }
       }
     };
   }, [stream]);
 
   // Effect para asignar stream al video cuando cambia
   useEffect(() => {
-    if (stream && videoRef.current && mostrarCamara) {
-      const video = videoRef.current;
-      video.srcObject = stream;
+    if (stream && mostrarCamara) {
+      // Dar tiempo al DOM para montar el video element
+      const timer = setTimeout(() => {
+        if (videoRef.current) {
+          const video = videoRef.current;
+          console.log('Asignando stream al video...');
+          video.srcObject = stream;
+          
+          // Esperar a que los metadatos estén cargados
+          video.onloadedmetadata = () => {
+            console.log('✅ Video listo:', video.videoWidth, 'x', video.videoHeight);
+            video.play().catch(err => console.error('Error al reproducir:', err));
+          };
+        } else {
+          console.error('❌ videoRef.current es null');
+        }
+      }, 100);
       
-      // Esperar a que los metadatos estén cargados
-      video.onloadedmetadata = () => {
-        console.log('✅ Video listo:', video.videoWidth, 'x', video.videoHeight);
-        video.play().catch(err => console.error('Error al reproducir:', err));
-      };
+      return () => clearTimeout(timer);
     }
   }, [stream, mostrarCamara]);
 
