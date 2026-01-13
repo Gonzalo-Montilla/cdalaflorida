@@ -8,7 +8,7 @@ from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, 
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 from io import BytesIO
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Optional
 import os
@@ -70,6 +70,12 @@ def generar_comprobante_cierre_caja(
     """
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=0.3*inch, bottomMargin=0.3*inch, leftMargin=0.5*inch, rightMargin=0.5*inch)
+    
+    # Convertir fechas UTC a hora de Colombia (UTC-5)
+    colombia_offset = timedelta(hours=-5)
+    fecha_apertura_local = fecha_apertura + colombia_offset
+    fecha_cierre_local = fecha_cierre + colombia_offset
+    fecha_generacion_local = datetime.utcnow() + colombia_offset
     
     # Estilos compactos
     styles = getSampleStyleSheet()
@@ -135,7 +141,7 @@ def generar_comprobante_cierre_caja(
     
     info_data = [
         ["Cajero:", cajero_nombre, "Turno:", turnos_map.get(turno, turno)],
-        ["Apertura:", fecha_apertura.strftime("%d/%m/%Y %H:%M"), "Cierre:", fecha_cierre.strftime("%d/%m/%Y %H:%M")],
+        ["Apertura:", fecha_apertura_local.strftime("%d/%m/%Y %H:%M"), "Cierre:", fecha_cierre_local.strftime("%d/%m/%Y %H:%M")],
     ]
     
     info_table = Table(info_data, colWidths=[1*inch, 2*inch, 0.8*inch, 1.7*inch])
@@ -365,7 +371,7 @@ def generar_comprobante_cierre_caja(
     elementos.append(Spacer(1, 0.05*inch))
     
     # Pie de página
-    fecha_generacion = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+    fecha_generacion = fecha_generacion_local.strftime("%d/%m/%Y %H:%M:%S")
     pie_style = ParagraphStyle(
         'Pie',
         parent=styles['Normal'],
