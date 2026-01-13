@@ -47,18 +47,28 @@ export default function Recepcion() {
   // Calcular fechas según filtro
   const calcularFechas = () => {
     const hoy = new Date();
+    
+    // Función para formatear fecha local sin convertir a UTC
+    // Esto evita desfase de zona horaria (crítico para producción)
+    const formatearFechaLocal = (fecha: Date) => {
+      const year = fecha.getFullYear();
+      const month = String(fecha.getMonth() + 1).padStart(2, '0');
+      const day = String(fecha.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+    
     let desde = '';
-    let hasta = hoy.toISOString().split('T')[0];
+    let hasta = formatearFechaLocal(hoy);
 
     switch (filtroFecha) {
       case 'hoy':
         desde = hasta;
         break;
       case 'semana':
-        desde = new Date(hoy.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        desde = formatearFechaLocal(new Date(hoy.getTime() - 7 * 24 * 60 * 60 * 1000));
         break;
       case 'mes':
-        desde = new Date(hoy.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        desde = formatearFechaLocal(new Date(hoy.getTime() - 30 * 24 * 60 * 60 * 1000));
         break;
       case 'personalizado':
         desde = fechaDesde;
