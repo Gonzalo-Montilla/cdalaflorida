@@ -33,6 +33,20 @@ export default function CapturaFotos({ onFotosChange, maxFotos = 4, fotos: fotos
     };
   }, [stream]);
 
+  // Effect para asignar stream al video cuando cambia
+  useEffect(() => {
+    if (stream && videoRef.current && mostrarCamara) {
+      const video = videoRef.current;
+      video.srcObject = stream;
+      
+      // Esperar a que los metadatos estén cargados
+      video.onloadedmetadata = () => {
+        console.log('✅ Video listo:', video.videoWidth, 'x', video.videoHeight);
+        video.play().catch(err => console.error('Error al reproducir:', err));
+      };
+    }
+  }, [stream, mostrarCamara]);
+
   // Iniciar cámara
   const iniciarCamara = async () => {
     setErrorCamara('');
@@ -46,7 +60,11 @@ export default function CapturaFotos({ onFotosChange, maxFotos = 4, fotos: fotos
 
       // Intentar con constraints simples primero (mejor compatibilidad)
       let constraints: MediaStreamConstraints = {
-        video: true,
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          facingMode: 'environment'
+        },
         audio: false
       };
 
@@ -56,36 +74,6 @@ export default function CapturaFotos({ onFotosChange, maxFotos = 4, fotos: fotos
       
       setStream(mediaStream);
       setMostrarCamara(true);
-      
-      // Esperar a que el video element esté en el DOM
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      // Asignar stream al video
-      if (videoRef.current) {
-        const video = videoRef.current;
-        video.srcObject = mediaStream;
-        video.muted = true;
-        video.playsInline = true;
-        video.autoplay = true;
-        
-        console.log('Stream asignado al video. VideoTracks:', mediaStream.getVideoTracks().length);
-        
-        // Evento cuando está listo
-        video.onloadedmetadata = () => {
-          console.log('Metadatos cargados. Video dimensions:', video.videoWidth, 'x', video.videoHeight);
-          video.play().then(() => {
-            console.log('✅ Video reproduciendo correctamente');
-          }).catch(err => {
-            console.error('❌ Error al reproducir:', err);
-          });
-        };
-        
-        // También intentar play inmediatamente
-        setTimeout(() => {
-          video.play().catch(err => console.warn('Play inmediato falló (normal):', err));
-        }, 100);
-      }
-
       setCargandoCamara(false);
     } catch (error: any) {
       console.error('Error al acceder a la cámara:', error);
