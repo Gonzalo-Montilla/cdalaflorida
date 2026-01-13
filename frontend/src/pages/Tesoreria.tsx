@@ -697,20 +697,28 @@ function RegistrarMovimiento() {
             <div className="relative">
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-bold text-gray-400">$</span>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
                 value={formData.monto}
-                onChange={(e) => setFormData({ ...formData, monto: e.target.value })}
+                onChange={(e) => {
+                  const value = e.target.value.replace(/[^0-9]/g, '');
+                  setFormData({ ...formData, monto: value });
+                }}
+                onBlur={(e) => {
+                  const num = parseInt(e.target.value) || 0;
+                  if (num > 0) {
+                    setFormData({ ...formData, monto: num.toString() });
+                  }
+                }}
                 className="input-pos text-2xl text-left font-bold pl-12 pr-4"
                 placeholder="Ejemplo: 2000000"
-                step="1"
-                min="1"
                 required
                 style={{ width: '100%' }}
               />
             </div>
             {formData.monto && parseFloat(formData.monto) > 0 && (
               <p className="mt-2 text-lg text-center text-gray-700 font-semibold">
-                Valor: <span className="text-primary-600">${formatCurrency(formData.monto)}</span>
+                Valor: <span className="text-primary-600">${formatCurrency(parseFloat(formData.monto))}</span>
               </p>
             )}
           </div>
