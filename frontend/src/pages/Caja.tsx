@@ -1654,7 +1654,7 @@ function CierreCaja({ cajaId, onCerrado }: { cajaId: string, onCerrado: () => vo
       // Descargar PDF generado por el backend
       try {
         const token = localStorage.getItem('access_token');
-        const response = await fetch(`http://localhost:8000/api/v1/cajas/${cajaCerrada.id}/comprobante-cierre`, {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/cajas/${cajaCerrada.id}/comprobante-cierre`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
