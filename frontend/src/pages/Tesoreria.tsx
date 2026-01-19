@@ -518,8 +518,14 @@ function RegistrarMovimiento() {
     console.log('monto parseado (number):', monto);
     console.log('tipo:', tipoMovimiento);
     
-    // Validar desglose de efectivo si es necesario
-    if (formData.metodo_pago === 'efectivo' && desgloseEfectivo) {
+    // Validar desglose de efectivo si el método de pago es efectivo
+    if (formData.metodo_pago === 'efectivo') {
+      // El desglose es obligatorio
+      if (!desgloseEfectivo) {
+        alert('El desglose de efectivo es obligatorio. Por favor, especifica las denominaciones de billetes y monedas.');
+        return;
+      }
+      
       const calcularTotal = (d: DesgloseEfectivo): number => {
         return (
           d.billetes_100000 * 100000 +
@@ -537,8 +543,16 @@ function RegistrarMovimiento() {
         );
       };
       const totalDesglose = calcularTotal(desgloseEfectivo);
+      
+      // Validar que el total no sea cero
+      if (totalDesglose === 0) {
+        alert('Debes especificar las denominaciones de billetes y monedas. El desglose no puede estar vacío.');
+        return;
+      }
+      
+      // Validar que coincida con el monto
       if (totalDesglose !== monto) {
-        alert(`El desglose de efectivo ($${formatCurrency(totalDesglose)}) no coincide con el monto ($${formatCurrency(monto)}).\n\nPor favor ajusta las denominaciones.`);
+        alert(`El desglose de efectivo ($${formatCurrency(totalDesglose)}) no coincide con el monto ($${formatCurrency(monto)}).\n\nPor favor ajusta las denominaciones para que el total calculado coincida exactamente.`);
         return;
       }
     }

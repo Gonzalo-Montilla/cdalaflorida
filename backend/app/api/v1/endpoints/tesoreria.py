@@ -143,13 +143,13 @@ def crear_movimiento(
     if movimiento_data.tipo == "ingreso" and not movimiento_data.categoria_ingreso:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Debe especificar una categoría de ingreso"
+            detail="Debe especificar una categoría de ingreso válida"
         )
     
     if movimiento_data.tipo == "egreso" and not movimiento_data.categoria_egreso:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Debe especificar una categoría de egreso"
+            detail="Debe especificar una categoría de egreso válida"
         )
     
     # Validar desglose de efectivo si el método de pago es efectivo
@@ -157,14 +157,14 @@ def crear_movimiento(
         if not movimiento_data.desglose_efectivo:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="El desglose de efectivo es obligatorio para movimientos en efectivo"
+                detail="El desglose de efectivo es obligatorio para movimientos en efectivo. Debe especificar la cantidad de billetes y monedas."
             )
         
         total_desglose = movimiento_data.desglose_efectivo.calcular_total()
         if total_desglose != movimiento_data.monto:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"El desglose de efectivo (${total_desglose:,.0f}) no coincide con el monto declarado (${movimiento_data.monto:,.0f})"
+                detail=f"El desglose de efectivo (${total_desglose:,.0f}) no coincide con el monto declarado (${movimiento_data.monto:,.0f}). Por favor, ajuste las denominaciones para que el total calculado coincida exactamente con el monto."
             )
         
         # Validar disponibilidad de denominaciones para EGRESOS

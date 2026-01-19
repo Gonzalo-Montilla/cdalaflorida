@@ -64,11 +64,12 @@ class MovimientoTesoreriaCreate(BaseModel):
     fecha_movimiento: Optional[datetime] = None  # Si no se envía, usa la fecha actual
     desglose_efectivo: Optional[DesgloseEfectivoCreate] = None  # Solo si metodo_pago es efectivo
     
-    @field_validator('categoria_ingreso', 'categoria_egreso')
+    @field_validator('categoria_ingreso', 'categoria_egreso', mode='before')
     @classmethod
     def validar_categoria(cls, v, info):
-        # Si es ingreso, debe tener categoria_ingreso
-        # Si es egreso, debe tener categoria_egreso
+        # Convertir cadenas vacías a None
+        if isinstance(v, str) and v.strip() == "":
+            return None
         return v
 
 

@@ -61,8 +61,12 @@ export default function ContadorEfectivo({ montoDeclarado, onChange, esEgreso = 
   const coincide = diferencia === 0 && montoDeclarado > 0;
 
   useEffect(() => {
-    onChange(desglose);
-  }, [desglose, onChange]);
+    // Solo notificar el cambio si hay valores en el desglose
+    // Esto evita enviar un desglose vacío (todos ceros) al backend
+    if (totalCalculado > 0) {
+      onChange(desglose);
+    }
+  }, [desglose, onChange, totalCalculado]);
 
   const handleChange = (campo: keyof DesgloseEfectivo, valor: string) => {
     const cantidad = parseInt(valor) || 0;
