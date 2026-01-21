@@ -211,26 +211,51 @@ def editar_vehiculo(
                 detail=f"Ya existe otro vehículo con placa {placa_upper} en estado {vehiculo_existente.estado}"
             )
     
-    # REUTILIZAR LÓGICA DE REGISTRO: Calcular tarifa según tipo y antigüedad
-    tarifa = calcular_tarifa_por_antiguedad(vehiculo_data.ano_modelo, vehiculo_data.tipo_vehiculo, db)
-    
-    # REUTILIZAR LÓGICA DE REGISTRO: Obtener comisión SOAT si aplica
-    comision_soat = Decimal(0)
-    if vehiculo_data.tiene_soat:
-        hoy = date.today()
-        tipo_comision = mapear_tipo_vehiculo_a_comision(vehiculo_data.tipo_vehiculo)
+    # Si es PREVENTIVA, no calcular tarifa
+    if vehiculo_data.tipo_vehiculo == "preventiva":
+        valor_rtm = Decimal(0)
+        comision_soat = Decimal(0)
+        total_cobrado = Decimal(0)
         
-        comision = db.query(ComisionSOAT).filter(
-            and_(
-                ComisionSOAT.tipo_vehiculo == tipo_comision,
-                ComisionSOAT.activa == True,
-                ComisionSOAT.vigencia_inicio <= hoy,
-                (ComisionSOAT.vigencia_fin >= hoy) | (ComisionSOAT.vigencia_fin == None)
-            )
-        ).first()
+        # SOAT puede aplicar o no en preventiva
+        if vehiculo_data.tiene_soat:
+            hoy = date.today()
+            comision = db.query(ComisionSOAT).filter(
+                and_(
+                    ComisionSOAT.tipo_vehiculo == "carro",
+                    ComisionSOAT.activa == True,
+                    ComisionSOAT.vigencia_inicio <= hoy,
+                    (ComisionSOAT.vigencia_fin >= hoy) | (ComisionSOAT.vigencia_fin == None)
+                )
+            ).first()
+            
+            if comision:
+                comision_soat = comision.valor_comision
+                total_cobrado = comision_soat
+    else:
+        # REUTILIZAR LÓGICA DE REGISTRO: Calcular tarifa según tipo y antigüedad
+        tarifa = calcular_tarifa_por_antiguedad(vehiculo_data.ano_modelo, vehiculo_data.tipo_vehiculo, db)
+        valor_rtm = tarifa.valor_total
         
-        if comision:
-            comision_soat = comision.valor_comision
+        # REUTILIZAR LÓGICA DE REGISTRO: Obtener comisión SOAT si aplica
+        comision_soat = Decimal(0)
+        if vehiculo_data.tiene_soat:
+            hoy = date.today()
+            tipo_comision = mapear_tipo_vehiculo_a_comision(vehiculo_data.tipo_vehiculo)
+            
+            comision = db.query(ComisionSOAT).filter(
+                and_(
+                    ComisionSOAT.tipo_vehiculo == tipo_comision,
+                    ComisionSOAT.activa == True,
+                    ComisionSOAT.vigencia_inicio <= hoy,
+                    (ComisionSOAT.vigencia_fin >= hoy) | (ComisionSOAT.vigencia_fin == None)
+                )
+            ).first()
+            
+            if comision:
+                comision_soat = comision.valor_comision
+        
+        total_cobrado = valor_rtm + comision_soat
     
     # Actualizar vehículo
     vehiculo.placa = placa_upper
@@ -245,9 +270,9 @@ def editar_vehiculo(
     vehiculo.observaciones = vehiculo_data.observaciones
     
     # Actualizar tarifas (RECALCULADAS)
-    vehiculo.valor_rtm = tarifa.valor_total
+    vehiculo.valor_rtm = valor_rtm
     vehiculo.comision_soat = comision_soat
-    vehiculo.total_cobrado = tarifa.valor_total + comision_soat
+    vehiculo.total_cobrado = total_cobrado
     
     db.commit()
     db.refresh(vehiculo)
