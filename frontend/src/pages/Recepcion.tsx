@@ -182,6 +182,12 @@ export default function Recepcion() {
 
   // Calcular tarifa cuando cambia el año del modelo o el tipo de vehículo
   useEffect(() => {
+    // Si es preventiva, no calcular tarifa
+    if (formData.tipo_vehiculo === 'preventiva') {
+      setTarifaCalculada(null);
+      return;
+    }
+    
     if (formData.ano_modelo >= 1900 && formData.ano_modelo <= new Date().getFullYear() + 1 && formData.tipo_vehiculo) {
       vehiculosApi.calcularTarifa(formData.ano_modelo, formData.tipo_vehiculo)
         .then(setTarifaCalculada)
@@ -384,6 +390,7 @@ export default function Recepcion() {
                   <option value="pesado_particular">Pesado Particular</option>
                   <option value="pesado_publico">Pesado Público</option>
                   <option value="moto">Motocicleta</option>
+                  <option value="preventiva">Preventiva (valor en Caja)</option>
                 </select>
               </div>
 
@@ -632,7 +639,51 @@ export default function Recepcion() {
               Tarifa a Cobrar
             </h3>
 
-            {tarifaCalculada ? (
+            {formData.tipo_vehiculo === 'preventiva' ? (
+              <div>
+                <div className="bg-yellow-50 border-2 border-yellow-300 rounded-lg p-6 text-center">
+                  <DollarSign className="w-16 h-16 text-yellow-600 mx-auto mb-3" />
+                  <p className="text-lg font-bold text-yellow-900 mb-2">
+                    SERVICIO PREVENTIVA
+                  </p>
+                  <p className="text-sm text-yellow-700">
+                    El valor se definirá manualmente en Caja
+                  </p>
+                </div>
+
+                {formData.tiene_soat && comisionSOAT && (
+                  <div className="mt-4 bg-green-50 border-2 border-green-200 rounded-lg p-3">
+                    <p className="text-xs text-green-700">Comisión SOAT</p>
+                    <p className="text-lg font-bold text-green-900">
+                      ${Number(comisionSOAT.valor_comision).toLocaleString()}
+                    </p>
+                  </div>
+                )}
+
+                {/* Indicador de fotos */}
+                {fotosVehiculo.length > 0 ? (
+                  <div className="mt-4 p-3 rounded-lg bg-green-50 border-2 border-green-200">
+                    <p className="text-xs font-medium mb-1 flex items-center gap-1">
+                      <Camera className="w-4 h-4" />
+                      <span>Fotos Capturadas</span>
+                    </p>
+                    <p className="text-sm font-bold text-green-900">
+                      <span>{fotosVehiculo.length} {fotosVehiculo.length === 1 ? 'foto' : 'fotos'}</span>
+                    </p>
+                  </div>
+                ) : (
+                  <div className="mt-4 p-3 rounded-lg bg-gray-50 border-2 border-gray-200">
+                    <p className="text-xs font-medium mb-1 flex items-center gap-1">
+                      <Camera className="w-4 h-4" />
+                      <span>Sin Fotos</span>
+                    </p>
+                    <p className="text-sm font-bold text-gray-500">
+                      <span>0 fotos</span>
+                    </p>
+                  </div>
+                )}
+              </div>
+            ) : tarifaCalculada ? (
               <div>
                 <div className="space-y-3 mb-6">
                   <div className="bg-white rounded-lg p-3">

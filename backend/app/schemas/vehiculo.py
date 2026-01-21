@@ -45,6 +45,7 @@ class VehiculoCobro(BaseModel):
     registrado_runt: bool = False
     registrado_sicov: bool = False
     registrado_indra: bool = False
+    valor_preventiva: Optional[Decimal] = Field(None, ge=0, description="Valor manual para servicio PREVENTIVA")
 
 
 class VehiculoResponse(BaseModel):

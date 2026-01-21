@@ -796,9 +796,22 @@ function ModalCobro({ vehiculo, onClose }: { vehiculo: Vehiculo, onClose: () => 
   });
   const [numeroFactura, setNumeroFactura] = useState('');
   const [clientePagaSOAT, setClientePagaSOAT] = useState(vehiculo.tiene_soat);
+  
+  // Estado para valor manual de PREVENTIVA
+  const [valorPreventiva, setValorPreventiva] = useState<string>('');
+  const esPreventiva = vehiculo.tipo_vehiculo === 'preventiva';
 
   // Calcular total a cobrar ajustado
-  const totalAjustado = clientePagaSOAT ? vehiculo.total_cobrado : (vehiculo.total_cobrado - vehiculo.comision_soat);
+  const calcularTotalAjustado = () => {
+    if (esPreventiva) {
+      const valorBase = parseFloat(valorPreventiva) || 0;
+      const comision = clientePagaSOAT ? vehiculo.comision_soat : 0;
+      return valorBase + comision;
+    }
+    return clientePagaSOAT ? vehiculo.total_cobrado : (vehiculo.total_cobrado - vehiculo.comision_soat);
+  };
+  
+  const totalAjustado = calcularTotalAjustado();
 
   // Obtener URLs de sistemas externos
   const { data: urls, isLoading: loadingUrls } = useQuery({
@@ -810,6 +823,11 @@ function ModalCobro({ vehiculo, onClose }: { vehiculo: Vehiculo, onClose: () => 
 
   // Validar que los 3 registros externos + factura DIAN estén completos
   const todosRegistrados = registros.registrado_runt && registros.registrado_sicov && registros.registrado_indra && !!numeroFactura;
+  
+  // Validar que si es preventiva, tenga valor
+  const preventivaTieneValor = esPreventiva ? parseFloat(valorPreventiva) > 0 : true;
+  
+  const puedeConfirmarCobro = todosRegistrados && preventivaTieneValor;
 
   const cobrarMutation = useMutation({
     mutationFn: vehiculosApi.cobrar,
@@ -848,8 +866,9 @@ function ModalCobro({ vehiculo, onClose }: { vehiculo: Vehiculo, onClose: () => 
     cobrarMutation.mutate({
       vehiculo_id: vehiculo.id,
       metodo_pago: metodoPago,
-      tiene_soat: clientePagaSOAT,  // Usar el valor del checkbox, no el original
+      tiene_soat: clientePagaSOAT,
       numero_factura_dian: numeroFactura || undefined,
+      valor_preventiva: esPreventiva ? parseFloat(valorPreventiva) : undefined,
       ...registros,
     });
   };
@@ -941,20 +960,51 @@ function ModalCobro({ vehiculo, onClose }: { vehiculo: Vehiculo, onClose: () => 
 
           {/* Total a Cobrar */}
           <div className="bg-gradient-to-r from-secondary-600 to-secondary-700 text-white rounded-xl p-6 mb-6">
-            <p className="text-sm opacity-90 mb-1">TOTAL A COBRAR</p>
-            <p className="text-4xl font-bold">${totalAjustado.toLocaleString()}</p>
-            {vehiculo.tiene_soat && (
-              <div className="mt-3">
-                {clientePagaSOAT ? (
+            {esPreventiva ? (
+              <div>
+                <p className="text-sm opacity-90 mb-3">SERVICIO PREVENTIVA - Ingrese el valor</p>
+                <div className="bg-white rounded-lg p-4 mb-3">
+                  <input
+                    type="number"
+                    value={valorPreventiva}
+                    onChange={(e) => setValorPreventiva(e.target.value)}
+                    placeholder="Ej: 50000"
+                    min="0"
+                    step="1000"
+                    className="w-full text-4xl font-bold text-gray-900 border-none focus:ring-0 p-0 text-center"
+                  />
+                </div>
+                {vehiculo.tiene_soat && clientePagaSOAT && (
                   <p className="text-sm opacity-90 flex items-center justify-center gap-1">
                     <CheckCircle2 className="w-4 h-4" />
-                    Incluye comisión SOAT: ${vehiculo.comision_soat.toLocaleString()}
+                    + Comisión SOAT: ${vehiculo.comision_soat.toLocaleString()}
                   </p>
-                ) : (
-                  <p className="text-sm opacity-90 flex items-center justify-center gap-1">
-                    <XCircle className="w-4 h-4" />
-                    SIN comisión SOAT (cliente se retractó)
-                  </p>
+                )}
+                {parseFloat(valorPreventiva) > 0 && (
+                  <div className="mt-3 pt-3 border-t border-white border-opacity-30">
+                    <p className="text-sm opacity-90 mb-1">TOTAL A COBRAR</p>
+                    <p className="text-3xl font-bold">${totalAjustado.toLocaleString()}</p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div>
+                <p className="text-sm opacity-90 mb-1">TOTAL A COBRAR</p>
+                <p className="text-4xl font-bold">${totalAjustado.toLocaleString()}</p>
+                {vehiculo.tiene_soat && (
+                  <div className="mt-3">
+                    {clientePagaSOAT ? (
+                      <p className="text-sm opacity-90 flex items-center justify-center gap-1">
+                        <CheckCircle2 className="w-4 h-4" />
+                        Incluye comisión SOAT: ${vehiculo.comision_soat.toLocaleString()}
+                      </p>
+                    ) : (
+                      <p className="text-sm opacity-90 flex items-center justify-center gap-1">
+                        <XCircle className="w-4 h-4" />
+                        SIN comisión SOAT (cliente se retractó)
+                      </p>
+                    )}
+                  </div>
                 )}
               </div>
             )}
@@ -1214,6 +1264,14 @@ function ModalCobro({ vehiculo, onClose }: { vehiculo: Vehiculo, onClose: () => 
                 </p>
               </div>
             )}
+            {esPreventiva && !preventivaTieneValor && (
+              <div className="mt-4 p-3 bg-red-50 border-2 border-red-200 rounded-lg">
+                <p className="text-sm font-semibold text-red-800 flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5" />
+                  Debes ingresar un valor mayor a $0 para servicio PREVENTIVA
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Botones */}
@@ -1227,7 +1285,7 @@ function ModalCobro({ vehiculo, onClose }: { vehiculo: Vehiculo, onClose: () => 
             </button>
             <button
               onClick={handleCobrar}
-              disabled={cobrarMutation.isPending || !todosRegistrados}
+              disabled={cobrarMutation.isPending || !puedeConfirmarCobro}
               className="flex-1 btn-pos btn-success disabled:opacity-50 inline-flex items-center justify-center gap-2"
             >
               {cobrarMutation.isPending ? (
