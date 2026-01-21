@@ -27,6 +27,7 @@ class MetodoPago(str, enum.Enum):
     TARJETA_DEBITO = "tarjeta_debito"
     TARJETA_CREDITO = "tarjeta_credito"
     TRANSFERENCIA = "transferencia"
+    MIXTO = "mixto"
     CREDISMART = "credismart"
     SISTECREDITO = "sistecredito"
 
@@ -58,7 +59,7 @@ class VehiculoProceso(Base):
     
     # Total y pago
     total_cobrado = Column(Numeric(10, 2), nullable=False)
-    metodo_pago = Column(SQLEnum(MetodoPago), nullable=True)
+    metodo_pago = Column(String(50), nullable=True)  # Cambiado a String para soportar 'mixto' y otros valores
     
     # Facturación y registros externos
     numero_factura_dian = Column(String(100))

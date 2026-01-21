@@ -67,6 +67,7 @@ export interface VehiculoCobro {
   registrado_sicov: boolean;
   registrado_indra: boolean;
   valor_preventiva?: number;
+  desglose_mixto?: Record<string, number>;
 }
 
 // Cajas

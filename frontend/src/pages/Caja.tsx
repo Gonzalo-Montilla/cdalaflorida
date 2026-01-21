@@ -800,6 +800,16 @@ function ModalCobro({ vehiculo, onClose }: { vehiculo: Vehiculo, onClose: () => 
   // Estado para valor manual de PREVENTIVA
   const [valorPreventiva, setValorPreventiva] = useState<string>('');
   const esPreventiva = vehiculo.tipo_vehiculo === 'preventiva';
+  
+  // Estado para desglose de pago mixto
+  const [desgloseMixto, setDesgloseMixto] = useState({
+    efectivo: 0,
+    tarjeta_debito: 0,
+    tarjeta_credito: 0,
+    transferencia: 0,
+    credismart: 0,
+    sistecredito: 0,
+  });
 
   // Calcular total a cobrar ajustado
   const calcularTotalAjustado = () => {
@@ -821,13 +831,17 @@ function ModalCobro({ vehiculo, onClose }: { vehiculo: Vehiculo, onClose: () => 
     retry: 1,
   });
 
+  // Calcular suma del desglose mixto
+  const sumaMixto = Object.values(desgloseMixto).reduce((acc, val) => acc + val, 0);
+  const desgloseMixtoValido = metodoPago === 'mixto' ? sumaMixto === totalAjustado : true;
+  
   // Validar que los 3 registros externos + factura DIAN estén completos
   const todosRegistrados = registros.registrado_runt && registros.registrado_sicov && registros.registrado_indra && !!numeroFactura;
   
   // Validar que si es preventiva, tenga valor
   const preventivaTieneValor = esPreventiva ? parseFloat(valorPreventiva) > 0 : true;
   
-  const puedeConfirmarCobro = todosRegistrados && preventivaTieneValor;
+  const puedeConfirmarCobro = todosRegistrados && preventivaTieneValor && desgloseMixtoValido;
 
   const cobrarMutation = useMutation({
     mutationFn: vehiculosApi.cobrar,
@@ -863,12 +877,20 @@ function ModalCobro({ vehiculo, onClose }: { vehiculo: Vehiculo, onClose: () => 
   });
 
   const handleCobrar = () => {
+    // Filtrar desglose mixto para solo enviar métodos con valor > 0
+    const desgloseParaEnviar = metodoPago === 'mixto'
+      ? Object.fromEntries(
+          Object.entries(desgloseMixto).filter(([_, valor]) => valor > 0)
+        )
+      : undefined;
+    
     cobrarMutation.mutate({
       vehiculo_id: vehiculo.id,
       metodo_pago: metodoPago,
       tiene_soat: clientePagaSOAT,
       numero_factura_dian: numeroFactura || undefined,
       valor_preventiva: esPreventiva ? parseFloat(valorPreventiva) : undefined,
+      desglose_mixto: desgloseParaEnviar,
       ...registros,
     });
   };
@@ -889,6 +911,9 @@ function ModalCobro({ vehiculo, onClose }: { vehiculo: Vehiculo, onClose: () => 
       transferencia: isSelected 
         ? 'border-purple-600 bg-purple-50 text-purple-900 scale-105' 
         : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400',
+      mixto: isSelected 
+        ? 'border-teal-600 bg-teal-50 text-teal-900 scale-105' 
+        : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400',
       credismart: isSelected 
         ? 'border-orange-600 bg-orange-50 text-orange-900 scale-105' 
         : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400',
@@ -905,6 +930,7 @@ function ModalCobro({ vehiculo, onClose }: { vehiculo: Vehiculo, onClose: () => 
     { id: 'tarjeta_debito', nombre: 'Tarjeta Débito', Icono: CreditCard, descripcion: 'No entra a caja' },
     { id: 'tarjeta_credito', nombre: 'Tarjeta Crédito', Icono: CreditCard, descripcion: 'No entra a caja' },
     { id: 'transferencia', nombre: 'Transferencia', Icono: Smartphone, descripcion: 'No entra a caja' },
+    { id: 'mixto', nombre: 'Pago Mixto', Icono: CreditCard, descripcion: 'Múltiples métodos' },
     { id: 'credismart', nombre: 'CrediSmart', Icono: Building2, descripcion: 'Crédito CDA' },
     { id: 'sistecredito', nombre: 'SisteCredito', Icono: Landmark, descripcion: 'Crédito CDA' },
   ];
@@ -1091,6 +1117,157 @@ function ModalCobro({ vehiculo, onClose }: { vehiculo: Vehiculo, onClose: () => 
                   <Building2 className="w-5 h-5 flex-shrink-0 mt-0.5" />
                   <span><strong>Crédito CDA:</strong> Es una cuenta por cobrar, el dinero NO ingresa a caja</span>
                 </p>
+              </div>
+            )}
+            {metodoPago === 'mixto' && (
+              <div className="mt-4 p-4 bg-teal-50 border-2 border-teal-200 rounded-lg">
+                <h4 className="font-bold text-teal-900 mb-3 flex items-center gap-2">
+                  <CreditCard className="w-5 h-5" />
+                  Desglose de Pago Mixto
+                </h4>
+                <p className="text-sm text-teal-700 mb-4">
+                  Ingresa el monto para cada método de pago. La suma debe ser <strong>${totalAjustado.toLocaleString()}</strong>
+                </p>
+                
+                <div className="grid grid-cols-2 gap-3 mb-3">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">
+                      <Banknote className="w-4 h-4 inline mr-1" />
+                      Efectivo
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                      <input
+                        type="number"
+                        value={desgloseMixto.efectivo || ''}
+                        onChange={(e) => setDesgloseMixto({ ...desgloseMixto, efectivo: parseFloat(e.target.value) || 0 })}
+                        className="w-full pl-8 pr-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                        placeholder="0"
+                        min="0"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">
+                      <CreditCard className="w-4 h-4 inline mr-1" />
+                      T. Débito
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                      <input
+                        type="number"
+                        value={desgloseMixto.tarjeta_debito || ''}
+                        onChange={(e) => setDesgloseMixto({ ...desgloseMixto, tarjeta_debito: parseFloat(e.target.value) || 0 })}
+                        className="w-full pl-8 pr-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                        placeholder="0"
+                        min="0"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">
+                      <CreditCard className="w-4 h-4 inline mr-1" />
+                      T. Crédito
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                      <input
+                        type="number"
+                        value={desgloseMixto.tarjeta_credito || ''}
+                        onChange={(e) => setDesgloseMixto({ ...desgloseMixto, tarjeta_credito: parseFloat(e.target.value) || 0 })}
+                        className="w-full pl-8 pr-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                        placeholder="0"
+                        min="0"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">
+                      <Smartphone className="w-4 h-4 inline mr-1" />
+                      Transferencia
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                      <input
+                        type="number"
+                        value={desgloseMixto.transferencia || ''}
+                        onChange={(e) => setDesgloseMixto({ ...desgloseMixto, transferencia: parseFloat(e.target.value) || 0 })}
+                        className="w-full pl-8 pr-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                        placeholder="0"
+                        min="0"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">
+                      <Building2 className="w-4 h-4 inline mr-1" />
+                      CrediSmart
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                      <input
+                        type="number"
+                        value={desgloseMixto.credismart || ''}
+                        onChange={(e) => setDesgloseMixto({ ...desgloseMixto, credismart: parseFloat(e.target.value) || 0 })}
+                        className="w-full pl-8 pr-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                        placeholder="0"
+                        min="0"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">
+                      <Landmark className="w-4 h-4 inline mr-1" />
+                      SisteCredito
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                      <input
+                        type="number"
+                        value={desgloseMixto.sistecredito || ''}
+                        onChange={(e) => setDesgloseMixto({ ...desgloseMixto, sistecredito: parseFloat(e.target.value) || 0 })}
+                        className="w-full pl-8 pr-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                        placeholder="0"
+                        min="0"
+                      />
+                    </div>
+                  </div>
+                </div>
+                
+                <div className={`p-3 rounded-lg border-2 ${
+                  sumaMixto === totalAjustado 
+                    ? 'bg-green-50 border-green-300' 
+                    : 'bg-yellow-50 border-yellow-300'
+                }`}>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="font-semibold">Total ingresado:</span>
+                    <span className="text-lg font-bold">${sumaMixto.toLocaleString()}</span>
+                  </div>
+                  {sumaMixto !== totalAjustado && (
+                    <div className="mt-2 text-sm">
+                      <span className="font-semibold">Falta: </span>
+                      <span className="text-red-600 font-bold">${(totalAjustado - sumaMixto).toLocaleString()}</span>
+                    </div>
+                  )}
+                  {sumaMixto === totalAjustado && (
+                    <p className="text-xs text-green-700 mt-1 flex items-center gap-1">
+                      <CheckCircle2 className="w-4 h-4" />
+                      ¡Monto correcto!
+                    </p>
+                  )}
+                </div>
+                
+                <div className="mt-3 p-2 bg-white border border-teal-200 rounded text-xs text-teal-800">
+                  <p className="flex items-start gap-1">
+                    <Banknote className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                    <span>Solo el <strong>efectivo</strong> se contará en el arqueo de caja</span>
+                  </p>
+                </div>
               </div>
             )}
           </div>
@@ -2081,6 +2258,24 @@ function CierreCaja({ cajaId, onCerrado }: { cajaId: string, onCerrado: () => vo
                       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
                         {vehiculosPorMetodo.transferencia.map((v, idx) => (
                           <div key={idx} className="bg-purple-50 border border-purple-200 rounded p-2">
+                            <p className="font-bold text-sm">{v.placa}</p>
+                            <p className="text-xs text-gray-600">${v.total_cobrado.toLocaleString()}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Pago Mixto */}
+                  {vehiculosPorMetodo.mixto && vehiculosPorMetodo.mixto.length > 0 && (
+                    <div>
+                      <h5 className="font-bold text-teal-900 mb-2 flex items-center gap-2">
+                        <CreditCard className="w-5 h-5" />
+                        Pago Mixto ({vehiculosPorMetodo.mixto.length})
+                      </h5>
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                        {vehiculosPorMetodo.mixto.map((v, idx) => (
+                          <div key={idx} className="bg-teal-50 border border-teal-200 rounded p-2">
                             <p className="font-bold text-sm">{v.placa}</p>
                             <p className="text-xs text-gray-600">${v.total_cobrado.toLocaleString()}</p>
                           </div>

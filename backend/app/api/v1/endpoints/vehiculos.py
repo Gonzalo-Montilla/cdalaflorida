@@ -393,8 +393,7 @@ def cobrar_vehiculo(
             vehiculo.comision_soat = comision_soat
             vehiculo.total_cobrado = vehiculo.valor_rtm + comision_soat
         
-        # Actualizar vehículo
-        vehiculo.metodo_pago = MetodoPago(cobro_data.metodo_pago)
+        # Actualizar vehículo - usar setattr para bypass el enum type checking
         vehiculo.numero_factura_dian = cobro_data.numero_factura_dian
         vehiculo.registrado_runt = cobro_data.registrado_runt
         vehiculo.registrado_sicov = cobro_data.registrado_sicov
@@ -404,37 +403,88 @@ def cobrar_vehiculo(
         vehiculo.caja_id = caja_abierta.id
         vehiculo.cobrado_por = current_user.id
         
+        # Para metodo_pago, usar UPDATE raw SQL para bypass enum type checking cuando es mixto
+        from sqlalchemy import text
+        if cobro_data.metodo_pago == "mixto":
+            # Usar SQL directo para actualizar con el valor literal
+            db.execute(
+                text("UPDATE vehiculos_proceso SET metodo_pago = :metodo WHERE id = :vehiculo_id"),
+                {"metodo": "mixto", "vehiculo_id": str(vehiculo.id)}
+            )
+        else:
+            vehiculo.metodo_pago = MetodoPago(cobro_data.metodo_pago)
+        
         # Crear movimientos en caja
         # IMPORTANTE: Solo el efectivo ingresa físicamente a caja
         # Tarjetas, transferencias y créditos NO ingresan a caja física
-        ingresa_efectivo_fisico = (cobro_data.metodo_pago == "efectivo")
         
-        # 1. RTM
-        mov_rtm = MovimientoCaja(
-            caja_id=caja_abierta.id,
-            vehiculo_id=vehiculo.id,
-            tipo=TipoMovimiento.RTM,
-            monto=vehiculo.valor_rtm,
-            metodo_pago=cobro_data.metodo_pago,
-            concepto=f"RTM {vehiculo.placa} - {vehiculo.cliente_nombre}",
-            ingresa_efectivo=ingresa_efectivo_fisico,
-            created_by=current_user.id
-        )
-        db.add(mov_rtm)
+        # Si es PAGO MIXTO, crear múltiples movimientos
+        if cobro_data.metodo_pago == "mixto":
+            if not cobro_data.desglose_mixto:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Debe proporcionar el desglose de pagos para método mixto"
+                )
+            
+            # Validar que la suma del desglose coincida con el total
+            suma_desglose = sum(Decimal(str(v)) for v in cobro_data.desglose_mixto.values() if v > 0)
+            if suma_desglose != vehiculo.total_cobrado:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"La suma del desglose ({suma_desglose}) no coincide con el total a cobrar ({vehiculo.total_cobrado})"
+                )
+            
+            # Crear un movimiento por cada método usado en el desglose
+            for metodo, monto in cobro_data.desglose_mixto.items():
+                if monto <= 0:
+                    continue
+                    
+                monto_decimal = Decimal(str(monto))
+                ingresa_efectivo = (metodo == "efectivo")
+                
+                # Movimiento RTM parcial
+                mov = MovimientoCaja(
+                    caja_id=caja_abierta.id,
+                    vehiculo_id=vehiculo.id,
+                    tipo=TipoMovimiento.RTM,
+                    monto=monto_decimal,
+                    metodo_pago=metodo,
+                    concepto=f"RTM {vehiculo.placa} ({metodo.replace('_', ' ').title()}) - {vehiculo.cliente_nombre}",
+                    ingresa_efectivo=ingresa_efectivo,
+                    created_by=current_user.id
+                )
+                db.add(mov)
         
-        # 2. Comisión SOAT (si aplica)
-        if vehiculo.comision_soat > 0:
-            mov_soat = MovimientoCaja(
+        # Si NO es mixto, crear movimientos normales
+        else:
+            ingresa_efectivo_fisico = (cobro_data.metodo_pago == "efectivo")
+            
+            # 1. RTM
+            mov_rtm = MovimientoCaja(
                 caja_id=caja_abierta.id,
                 vehiculo_id=vehiculo.id,
-                tipo=TipoMovimiento.COMISION_SOAT,
-                monto=vehiculo.comision_soat,
+                tipo=TipoMovimiento.RTM,
+                monto=vehiculo.valor_rtm,
                 metodo_pago=cobro_data.metodo_pago,
-                concepto=f"Comisión SOAT {vehiculo.placa}",
+                concepto=f"RTM {vehiculo.placa} - {vehiculo.cliente_nombre}",
                 ingresa_efectivo=ingresa_efectivo_fisico,
                 created_by=current_user.id
             )
-            db.add(mov_soat)
+            db.add(mov_rtm)
+            
+            # 2. Comisión SOAT (si aplica)
+            if vehiculo.comision_soat > 0:
+                mov_soat = MovimientoCaja(
+                    caja_id=caja_abierta.id,
+                    vehiculo_id=vehiculo.id,
+                    tipo=TipoMovimiento.COMISION_SOAT,
+                    monto=vehiculo.comision_soat,
+                    metodo_pago=cobro_data.metodo_pago,
+                    concepto=f"Comisión SOAT {vehiculo.placa}",
+                    ingresa_efectivo=ingresa_efectivo_fisico,
+                    created_by=current_user.id
+                )
+                db.add(mov_soat)
         
         db.commit()
         db.refresh(vehiculo)

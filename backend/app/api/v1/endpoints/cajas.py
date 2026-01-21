@@ -435,6 +435,7 @@ def obtener_vehiculos_por_metodo(
         "tarjeta_debito": [],
         "tarjeta_credito": [],
         "transferencia": [],
+        "mixto": [],
         "credismart": [],
         "sistecredito": []
     }

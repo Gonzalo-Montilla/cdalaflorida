@@ -46,6 +46,7 @@ class VehiculoCobro(BaseModel):
     registrado_sicov: bool = False
     registrado_indra: bool = False
     valor_preventiva: Optional[Decimal] = Field(None, ge=0, description="Valor manual para servicio PREVENTIVA")
+    desglose_mixto: Optional[dict] = Field(None, description="Desglose de montos por método cuando metodo_pago='mixto'")
 
 
 class VehiculoResponse(BaseModel):
