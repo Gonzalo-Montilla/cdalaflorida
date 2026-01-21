@@ -22,6 +22,20 @@ class VehiculoRegistro(BaseModel):
     observaciones: Optional[str] = None
 
 
+class VehiculoEdicion(BaseModel):
+    """Edición de vehículo registrado (antes de cobrar)"""
+    placa: str = Field(min_length=5, max_length=10)
+    tipo_vehiculo: str = Field(default="moto")
+    marca: Optional[str] = None
+    modelo: Optional[str] = None
+    ano_modelo: int = Field(ge=1950, le=2030)
+    cliente_nombre: str = Field(min_length=3)
+    cliente_documento: str = Field(min_length=5)
+    cliente_telefono: Optional[str] = None
+    tiene_soat: bool = False
+    observaciones: Optional[str] = None
+
+
 class VehiculoCobro(BaseModel):
     """Datos para cobrar un vehículo"""
     vehiculo_id: UUID

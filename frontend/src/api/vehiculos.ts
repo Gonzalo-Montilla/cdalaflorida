@@ -24,6 +24,12 @@ export const vehiculosApi = {
     return response.data;
   },
 
+  // Editar un vehículo registrado (Recepción)
+  editar: async (vehiculoId: string, data: VehiculoRegistro): Promise<Vehiculo> => {
+    const response = await apiClient.put<Vehiculo>(`/vehiculos/${vehiculoId}`, data);
+    return response.data;
+  },
+
   // Calcular tarifa según año del modelo y tipo de vehículo
   calcularTarifa: async (anoModelo: number, tipoVehiculo: string = 'moto'): Promise<TarifaCalculada> => {
     const response = await apiClient.get<TarifaCalculada>(

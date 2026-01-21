@@ -15,6 +15,7 @@ from app.models.tarifa import Tarifa, ComisionSOAT
 from app.models.caja import Caja, MovimientoCaja, TipoMovimiento, EstadoCaja
 from app.schemas.vehiculo import (
     VehiculoRegistro,
+    VehiculoEdicion,
     VehiculoCobro,
     VehiculoResponse,
     VehiculosPendientes,
@@ -138,6 +139,95 @@ def registrar_vehiculo(
     db.refresh(nuevo_vehiculo)
     
     return nuevo_vehiculo
+
+
+@router.put("/{vehiculo_id}", response_model=VehiculoResponse)
+def editar_vehiculo(
+    vehiculo_id: str,
+    vehiculo_data: VehiculoEdicion,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_recepcionista_or_admin)
+):
+    """
+    Editar vehículo registrado (solo antes de cobrar)
+    """
+    # Buscar vehículo
+    vehiculo = db.query(VehiculoProceso).filter(
+        VehiculoProceso.id == vehiculo_id
+    ).first()
+    
+    if not vehiculo:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Vehículo no encontrado"
+        )
+    
+    # Validar que esté en estado REGISTRADO (no cobrado)
+    if vehiculo.estado != EstadoVehiculo.REGISTRADO:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"No se puede editar un vehículo en estado {vehiculo.estado}. Solo se pueden editar vehículos registrados."
+        )
+    
+    # Si cambió la placa, validar que no exista otra con la misma placa
+    placa_upper = vehiculo_data.placa.upper()
+    if placa_upper != vehiculo.placa:
+        vehiculo_existente = db.query(VehiculoProceso).filter(
+            and_(
+                VehiculoProceso.placa == placa_upper,
+                VehiculoProceso.id != vehiculo_id,
+                VehiculoProceso.estado.in_([EstadoVehiculo.REGISTRADO, EstadoVehiculo.PAGADO])
+            )
+        ).first()
+        
+        if vehiculo_existente:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Ya existe otro vehículo con placa {placa_upper} en estado {vehiculo_existente.estado}"
+            )
+    
+    # REUTILIZAR LÓGICA DE REGISTRO: Calcular tarifa según tipo y antigüedad
+    tarifa = calcular_tarifa_por_antiguedad(vehiculo_data.ano_modelo, vehiculo_data.tipo_vehiculo, db)
+    
+    # REUTILIZAR LÓGICA DE REGISTRO: Obtener comisión SOAT si aplica
+    comision_soat = Decimal(0)
+    if vehiculo_data.tiene_soat:
+        hoy = date.today()
+        tipo_comision = mapear_tipo_vehiculo_a_comision(vehiculo_data.tipo_vehiculo)
+        
+        comision = db.query(ComisionSOAT).filter(
+            and_(
+                ComisionSOAT.tipo_vehiculo == tipo_comision,
+                ComisionSOAT.activa == True,
+                ComisionSOAT.vigencia_inicio <= hoy,
+                (ComisionSOAT.vigencia_fin >= hoy) | (ComisionSOAT.vigencia_fin == None)
+            )
+        ).first()
+        
+        if comision:
+            comision_soat = comision.valor_comision
+    
+    # Actualizar vehículo
+    vehiculo.placa = placa_upper
+    vehiculo.tipo_vehiculo = vehiculo_data.tipo_vehiculo
+    vehiculo.marca = vehiculo_data.marca
+    vehiculo.modelo = vehiculo_data.modelo
+    vehiculo.ano_modelo = vehiculo_data.ano_modelo
+    vehiculo.cliente_nombre = vehiculo_data.cliente_nombre
+    vehiculo.cliente_documento = vehiculo_data.cliente_documento
+    vehiculo.cliente_telefono = vehiculo_data.cliente_telefono
+    vehiculo.tiene_soat = vehiculo_data.tiene_soat
+    vehiculo.observaciones = vehiculo_data.observaciones
+    
+    # Actualizar tarifas (RECALCULADAS)
+    vehiculo.valor_rtm = tarifa.valor_total
+    vehiculo.comision_soat = comision_soat
+    vehiculo.total_cobrado = tarifa.valor_total + comision_soat
+    
+    db.commit()
+    db.refresh(vehiculo)
+    
+    return vehiculo
 
 
 @router.get("/pendientes", response_model=VehiculosPendientes)

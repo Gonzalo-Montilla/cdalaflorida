@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, type FormEvent } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ClipboardList, Bike, DollarSign, CheckCircle2, XCircle, RotateCcw, Search, X, Calendar, CalendarDays, CalendarRange, BarChart3, Camera, Car } from 'lucide-react';
+import { ClipboardList, DollarSign, CheckCircle2, RotateCcw, Search, X, Calendar, CalendarDays, CalendarRange, BarChart3, Camera, Car, Edit } from 'lucide-react';
 import Layout from '../components/Layout';
 import LoadingSpinner from '../components/LoadingSpinner';
 import CapturaFotos from '../components/CapturaFotos';
@@ -15,6 +15,10 @@ export default function Recepcion() {
   const { showToast } = useToast();
   const [tarifaCalculada, setTarifaCalculada] = useState<TarifaCalculada | null>(null);
   const [fotosVehiculo, setFotosVehiculo] = useState<string[]>([]);
+
+  // Estado para edición
+  const [modoEdicion, setModoEdicion] = useState(false);
+  const [vehiculoEditando, setVehiculoEditando] = useState<string | null>(null);
 
   // Estado del formulario
   const [formData, setFormData] = useState<VehiculoRegistro>({
@@ -149,6 +153,33 @@ export default function Recepcion() {
     }
   });
 
+  // Mutación para editar vehículo
+  const editarMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: VehiculoRegistro }) => vehiculosApi.editar(id, data),
+    onSuccess: () => {
+      showToast('success', '¡Vehículo actualizado exitosamente!');
+      
+      setModoEdicion(false);
+      setVehiculoEditando(null);
+      setFotosVehiculo([]);
+      resetForm();
+      
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['vehiculos'] });
+        queryClient.invalidateQueries({ queryKey: ['vehiculos-count'] });
+        queryClient.invalidateQueries({ queryKey: ['vehiculos-pendientes'] });
+      }, 300);
+    },
+    onError: (error: any) => {
+      const errorMessage = error?.response?.data?.detail || 'Error al editar el vehículo';
+      showToast(
+        'error',
+        'Error al editar vehículo',
+        typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage)
+      );
+    }
+  });
+
   // Calcular tarifa cuando cambia el año del modelo o el tipo de vehículo
   useEffect(() => {
     if (formData.ano_modelo >= 1900 && formData.ano_modelo <= new Date().getFullYear() + 1 && formData.tipo_vehiculo) {
@@ -184,6 +215,46 @@ export default function Recepcion() {
     // Esto permite que la tarifa permanezca visible después del registro
   };
 
+  const iniciarEdicion = (vehiculo: any) => {
+    // Extraer fotos de observaciones
+    const fotos = extraerFotosDeObservaciones(vehiculo.observaciones);
+    
+    // Extraer texto de observaciones
+    let textoObservaciones = '';
+    try {
+      const parsed = JSON.parse(vehiculo.observaciones || '{}');
+      textoObservaciones = parsed.texto || '';
+    } catch {
+      textoObservaciones = vehiculo.observaciones || '';
+    }
+    
+    setModoEdicion(true);
+    setVehiculoEditando(vehiculo.id);
+    setFotosVehiculo(fotos);
+    setFormData({
+      placa: vehiculo.placa,
+      tipo_vehiculo: vehiculo.tipo_vehiculo,
+      marca: vehiculo.marca,
+      modelo: vehiculo.modelo,
+      ano_modelo: vehiculo.ano_modelo,
+      cliente_nombre: vehiculo.cliente_nombre,
+      cliente_documento: vehiculo.cliente_documento,
+      cliente_telefono: vehiculo.cliente_telefono || '',
+      tiene_soat: vehiculo.tiene_soat,
+      observaciones: textoObservaciones,
+    });
+    
+    // Scroll al formulario
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const cancelarEdicion = () => {
+    setModoEdicion(false);
+    setVehiculoEditando(null);
+    setFotosVehiculo([]);
+    resetForm();
+  };
+
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     
@@ -196,7 +267,11 @@ export default function Recepcion() {
       })
     };
     
-    registrarMutation.mutate(dataConFotos);
+    if (modoEdicion && vehiculoEditando) {
+      editarMutation.mutate({ id: vehiculoEditando, data: dataConFotos });
+    } else {
+      registrarMutation.mutate(dataConFotos);
+    }
   };
 
   const handleInputChange = (field: keyof VehiculoRegistro, value: string | number | boolean) => {
@@ -262,7 +337,16 @@ export default function Recepcion() {
         {/* Formulario de Registro */}
         <div className="lg:col-span-2">
           <form onSubmit={handleSubmit} className="card-pos">
-            <h3 className="text-xl font-bold text-gray-900 mb-6">Datos del Vehículo y Cliente</h3>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-gray-900">
+                {modoEdicion ? 'Editando Vehículo' : 'Datos del Vehículo y Cliente'}
+              </h3>
+              {modoEdicion && (
+                <span className="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm font-semibold">
+                  MODO EDICIÓN
+                </span>
+              )}
+            </div>
 
             {/* Los mensajes de éxito y error ahora se manejan con el componente Toast */}
 
@@ -505,26 +589,37 @@ export default function Recepcion() {
             <div className="flex gap-4 mt-6">
               <button
                 type="submit"
-                disabled={registrarMutation.isPending}
+                disabled={registrarMutation.isPending || editarMutation.isPending}
                 className="flex-1 btn-pos btn-primary disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                {registrarMutation.isPending ? (
-                  <span>Registrando...</span>
+                {(registrarMutation.isPending || editarMutation.isPending) ? (
+                  <span>{modoEdicion ? 'Actualizando...' : 'Registrando...'}</span>
                 ) : (
                   <span className="flex items-center justify-center gap-2">
                     <CheckCircle2 className="w-5 h-5" />
-                    <span>Registrar Vehículo</span>
+                    <span>{modoEdicion ? 'Actualizar Vehículo' : 'Registrar Vehículo'}</span>
                   </span>
                 )}
               </button>
-              <button
-                type="button"
-                onClick={resetForm}
-                className="btn-pos btn-secondary flex items-center gap-2"
-              >
-                <RotateCcw className="w-5 h-5" />
-                Limpiar
-              </button>
+              {modoEdicion ? (
+                <button
+                  type="button"
+                  onClick={cancelarEdicion}
+                  className="btn-pos btn-secondary flex items-center gap-2"
+                >
+                  <X className="w-5 h-5" />
+                  Cancelar
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={resetForm}
+                  className="btn-pos btn-secondary flex items-center gap-2"
+                >
+                  <RotateCcw className="w-5 h-5" />
+                  Limpiar
+                </button>
+              )}
             </div>
           </form>
         </div>
@@ -820,6 +915,17 @@ export default function Recepcion() {
                       ${vehiculo.total_cobrado.toLocaleString()}
                     </p>
                   </div>
+
+                  {/* Botón editar (solo si estado = registrado) */}
+                  {vehiculo.estado === 'registrado' && (
+                    <button
+                      onClick={() => iniciarEdicion(vehiculo)}
+                      className="w-full mt-3 btn-pos btn-secondary flex items-center justify-center gap-2 py-2 text-sm"
+                    >
+                      <Edit className="w-4 h-4" />
+                      Editar
+                    </button>
+                  )}
                 </div>
               );
               })}
