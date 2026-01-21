@@ -160,7 +160,7 @@ export default function NotificacionesCierreCaja() {
                 <div className="flex flex-col gap-2">
                   <button
                     onClick={() => marcarLeidaMutation.mutate(notif.id)}
-                    disabled={marcarLeidaMutation.isPending}
+                    disabled={marcarLeidaMutation.isLoading}
                     className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 flex items-center gap-2"
                     title="Marcar como leída"
                   >
@@ -169,7 +169,7 @@ export default function NotificacionesCierreCaja() {
                   </button>
                   <button
                     onClick={() => archivarMutation.mutate(notif.id)}
-                    disabled={archivarMutation.isPending}
+                    disabled={archivarMutation.isLoading}
                     className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 flex items-center gap-2"
                     title="Archivar"
                   >
@@ -185,3 +185,4 @@ export default function NotificacionesCierreCaja() {
     </div>
   );
 }
+

@@ -563,10 +563,10 @@ function AperturaCaja() {
           {/* Botón Submit */}
           <button
             type="submit"
-            disabled={abrirMutation.isPending}
+            disabled={abrirMutation.isLoading}
             className="w-full btn-pos btn-success disabled:opacity-50 text-xl inline-flex items-center justify-center gap-2"
           >
-            {abrirMutation.isPending ? (
+            {abrirMutation.isLoading ? (
               'Abriendo caja...'
             ) : (
               <>
@@ -1279,16 +1279,16 @@ function ModalCobro({ vehiculo, onClose }: { vehiculo: Vehiculo, onClose: () => 
             <button
               onClick={onClose}
               className="flex-1 btn-pos btn-secondary"
-              disabled={cobrarMutation.isPending}
+              disabled={cobrarMutation.isLoading}
             >
               Cancelar
             </button>
             <button
               onClick={handleCobrar}
-              disabled={cobrarMutation.isPending || !puedeConfirmarCobro}
+              disabled={cobrarMutation.isLoading || !puedeConfirmarCobro}
               className="flex-1 btn-pos btn-success disabled:opacity-50 inline-flex items-center justify-center gap-2"
             >
-              {cobrarMutation.isPending ? (
+              {cobrarMutation.isLoading ? (
                 <span>Procesando...</span>
               ) : (
                 <span className="inline-flex items-center justify-center gap-2">
@@ -1592,16 +1592,16 @@ function ModalGasto({ onClose, onSuccess }: { onClose: () => void, onSuccess: ()
                 type="button"
                 onClick={onClose}
                 className="flex-1 btn-pos btn-secondary"
-                disabled={registrarGastoMutation.isPending}
+                disabled={registrarGastoMutation.isLoading}
               >
                 Cancelar
               </button>
               <button
                 type="submit"
-                disabled={registrarGastoMutation.isPending || !formData.monto || formData.concepto.length < 5}
+                disabled={registrarGastoMutation.isLoading || !formData.monto || formData.concepto.length < 5}
                 className="flex-1 btn-pos btn-danger disabled:opacity-50 inline-flex items-center justify-center gap-2"
               >
-                {registrarGastoMutation.isPending ? (
+                {registrarGastoMutation.isLoading ? (
                   'Registrando...'
                 ) : (
                   <>
@@ -2375,16 +2375,16 @@ function CierreCaja({ cajaId, onCerrado }: { cajaId: string, onCerrado: () => vo
           <button
             onClick={onCerrado}
             className="flex-1 btn-pos btn-secondary"
-            disabled={cerrarMutation.isPending}
+            disabled={cerrarMutation.isLoading}
           >
             Cancelar
           </button>
           <button
             onClick={handleCerrar}
-            disabled={cerrarMutation.isPending || !haIngresadoArqueo}
+            disabled={cerrarMutation.isLoading || !haIngresadoArqueo}
             className="flex-1 btn-pos btn-danger disabled:opacity-50 inline-flex items-center justify-center gap-2"
           >
-            {cerrarMutation.isPending ? (
+            {cerrarMutation.isLoading ? (
               <span>Cerrando...</span>
             ) : (
               <span className="inline-flex items-center justify-center gap-2">
@@ -2795,16 +2795,16 @@ function ModalCambiarMetodoPago({ vehiculo, onClose }: { vehiculo: Vehiculo, onC
                 type="button"
                 onClick={onClose}
                 className="flex-1 btn-pos btn-secondary"
-                disabled={cambiarMetodoMutation.isPending}
+                disabled={cambiarMetodoMutation.isLoading}
               >
                 Cancelar
               </button>
               <button
                 type="submit"
-                disabled={cambiarMetodoMutation.isPending || motivo.length < 10}
+                disabled={cambiarMetodoMutation.isLoading || motivo.length < 10}
                 className="flex-1 btn-pos btn-primary disabled:opacity-50 inline-flex items-center justify-center gap-2"
               >
-                {cambiarMetodoMutation.isPending ? (
+                {cambiarMetodoMutation.isLoading ? (
                   <span>Cambiando...</span>
                 ) : (
                   <span className="inline-flex items-center justify-center gap-2">
@@ -3065,16 +3065,16 @@ function ModalVentaSOAT({ onClose, onSuccess }: { onClose: () => void, onSuccess
                 type="button"
                 onClick={onClose}
                 className="flex-1 btn-pos btn-secondary"
-                disabled={ventaSOATMutation.isPending}
+                disabled={ventaSOATMutation.isLoading}
               >
                 Cancelar
               </button>
               <button
                 type="submit"
-                disabled={ventaSOATMutation.isPending}
+                disabled={ventaSOATMutation.isLoading}
                 className="flex-1 btn-pos btn-success disabled:opacity-50 inline-flex items-center justify-center gap-2"
               >
-                {ventaSOATMutation.isPending ? (
+                {ventaSOATMutation.isLoading ? (
                   'Registrando...'
                 ) : (
                   <>
@@ -3090,3 +3090,4 @@ function ModalVentaSOAT({ onClose, onSuccess }: { onClose: () => void, onSuccess
     </div>
   );
 }
+

@@ -596,10 +596,10 @@ export default function Recepcion() {
             <div className="flex gap-4 mt-6">
               <button
                 type="submit"
-                disabled={registrarMutation.isPending || editarMutation.isPending}
+                disabled={registrarMutation.isLoading || editarMutation.isLoading}
                 className="flex-1 btn-pos btn-primary disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                {(registrarMutation.isPending || editarMutation.isPending) ? (
+                {(registrarMutation.isLoading || editarMutation.isLoading) ? (
                   <span>{modoEdicion ? 'Actualizando...' : 'Registrando...'}</span>
                 ) : (
                   <span className="flex items-center justify-center gap-2">
@@ -1092,3 +1092,4 @@ export default function Recepcion() {
     </Layout>
   );
 }
+

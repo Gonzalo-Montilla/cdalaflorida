@@ -202,10 +202,10 @@ export default function Login() {
                   </button>
                   <button
                     type="submit"
-                    disabled={forgotPasswordMutation.isPending}
+                    disabled={forgotPasswordMutation.isLoading}
                     className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition disabled:opacity-50"
                   >
-                    {forgotPasswordMutation.isPending ? 'Enviando...' : 'Enviar'}
+                    {forgotPasswordMutation.isLoading ? 'Enviando...' : 'Enviar'}
                   </button>
                 </div>
               </form>
@@ -222,3 +222,4 @@ export default function Login() {
     </div>
   );
 }
+

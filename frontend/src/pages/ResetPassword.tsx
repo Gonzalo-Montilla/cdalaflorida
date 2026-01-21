@@ -131,10 +131,10 @@ export default function ResetPassword() {
             {/* Botones */}
             <button
               type="submit"
-              disabled={resetPasswordMutation.isPending}
+              disabled={resetPasswordMutation.isLoading}
               className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white py-3 rounded-xl font-bold shadow-lg transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {resetPasswordMutation.isPending ? '⏳ Actualizando...' : '🔒 Actualizar Contraseña'}
+              {resetPasswordMutation.isLoading ? '⏳ Actualizando...' : '🔒 Actualizar Contraseña'}
             </button>
 
             <button
@@ -168,3 +168,4 @@ export default function ResetPassword() {
     </div>
   );
 }
+

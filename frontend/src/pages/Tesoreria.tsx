@@ -845,16 +845,16 @@ function RegistrarMovimiento() {
                 numero_comprobante: '',
               })}
               className="flex-1 btn-pos btn-secondary"
-              disabled={registrarMutation.isPending}
+              disabled={registrarMutation.isLoading}
             >
               Limpiar
             </button>
             <button
               type="submit"
-              disabled={registrarMutation.isPending}
+              disabled={registrarMutation.isLoading}
               className="flex-1 btn-pos btn-primary disabled:opacity-50 flex items-center justify-center gap-2"
             >
-              {registrarMutation.isPending ? 'Registrando...' : (
+              {registrarMutation.isLoading ? 'Registrando...' : (
                 <>
                   <Plus className="w-5 h-5" />
                   Registrar Movimiento
@@ -1092,4 +1092,5 @@ function Historial() {
     </div>
   );
 }
+
 

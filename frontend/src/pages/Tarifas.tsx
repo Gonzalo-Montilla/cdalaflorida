@@ -505,16 +505,16 @@ function ModalTarifa({ onClose, anoInicial }: { onClose: () => void; anoInicial:
                 type="button"
                 onClick={onClose}
                 className="flex-1 btn-pos btn-secondary"
-                disabled={crearMutation.isPending}
+                disabled={crearMutation.isLoading}
               >
                 Cancelar
               </button>
               <button
                 type="submit"
-                disabled={crearMutation.isPending}
+                disabled={crearMutation.isLoading}
                 className="flex-1 btn-pos btn-success disabled:opacity-50 inline-flex items-center justify-center gap-2"
               >
-                {crearMutation.isPending ? (
+                {crearMutation.isLoading ? (
                   'Creando...'
                 ) : (
                   <>
@@ -664,16 +664,16 @@ function ModalEditarTarifa({ tarifa, onClose }: { tarifa: Tarifa; onClose: () =>
                 type="button"
                 onClick={onClose}
                 className="flex-1 btn-pos btn-secondary"
-                disabled={editarMutation.isPending}
+                disabled={editarMutation.isLoading}
               >
                 Cancelar
               </button>
               <button
                 type="submit"
-                disabled={editarMutation.isPending}
+                disabled={editarMutation.isLoading}
                 className="flex-1 btn-pos btn-success disabled:opacity-50 inline-flex items-center justify-center gap-2"
               >
-                {editarMutation.isPending ? (
+                {editarMutation.isLoading ? (
                   'Guardando...'
                 ) : (
                   <>
@@ -788,7 +788,7 @@ function ComisionesSOAT() {
                       </button>
                       <button
                         onClick={() => handleEliminar(comision)}
-                        disabled={eliminarMutation.isPending}
+                        disabled={eliminarMutation.isLoading}
                         className="px-4 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors disabled:opacity-50 inline-flex items-center justify-center"
                         title="Eliminar"
                       >
@@ -1029,10 +1029,10 @@ function ModalEditarComisionSOAT({ comision, onClose }: { comision: any; onClose
               </button>
               <button
                 type="submit"
-                disabled={mutation.isPending}
+                disabled={mutation.isLoading}
                 className="flex-1 px-6 py-3 bg-primary-600 text-white rounded-lg font-semibold hover:bg-primary-700 transition-colors disabled:opacity-50"
               >
-                {mutation.isPending ? 'Guardando...' : esNuevo ? 'Crear Comisión' : 'Guardar Cambios'}
+                {mutation.isLoading ? 'Guardando...' : esNuevo ? 'Crear Comisión' : 'Guardar Cambios'}
               </button>
             </div>
           </form>
@@ -1041,3 +1041,4 @@ function ModalEditarComisionSOAT({ comision, onClose }: { comision: any; onClose
     </div>
   );
 }
+
