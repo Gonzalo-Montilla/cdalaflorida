@@ -833,7 +833,8 @@ function ModalCobro({ vehiculo, onClose }: { vehiculo: Vehiculo, onClose: () => 
 
   // Calcular suma del desglose mixto
   const sumaMixto = Object.values(desgloseMixto).reduce((acc, val) => acc + val, 0);
-  const desgloseMixtoValido = metodoPago === 'mixto' ? sumaMixto === totalAjustado : true;
+  // Tolerancia de 1 peso para errores de redondeo
+  const desgloseMixtoValido = metodoPago === 'mixto' ? Math.abs(sumaMixto - totalAjustado) < 1 : true;
   
   // Validar que los 3 registros externos + factura DIAN estén completos
   const todosRegistrados = registros.registrado_runt && registros.registrado_sicov && registros.registrado_indra && !!numeroFactura;
@@ -930,9 +931,9 @@ function ModalCobro({ vehiculo, onClose }: { vehiculo: Vehiculo, onClose: () => 
     { id: 'tarjeta_debito', nombre: 'Tarjeta Débito', Icono: CreditCard, descripcion: 'No entra a caja' },
     { id: 'tarjeta_credito', nombre: 'Tarjeta Crédito', Icono: CreditCard, descripcion: 'No entra a caja' },
     { id: 'transferencia', nombre: 'Transferencia', Icono: Smartphone, descripcion: 'No entra a caja' },
-    { id: 'mixto', nombre: 'Pago Mixto', Icono: CreditCard, descripcion: 'Múltiples métodos' },
     { id: 'credismart', nombre: 'CrediSmart', Icono: Building2, descripcion: 'Crédito CDA' },
     { id: 'sistecredito', nombre: 'SisteCredito', Icono: Landmark, descripcion: 'Crédito CDA' },
+    { id: 'mixto', nombre: 'Pago Mixto', Icono: CreditCard, descripcion: 'Múltiples métodos' },
   ];
 
   return (
@@ -1240,7 +1241,7 @@ function ModalCobro({ vehiculo, onClose }: { vehiculo: Vehiculo, onClose: () => 
                 </div>
                 
                 <div className={`p-3 rounded-lg border-2 ${
-                  sumaMixto === totalAjustado 
+                  Math.abs(sumaMixto - totalAjustado) < 1
                     ? 'bg-green-50 border-green-300' 
                     : 'bg-yellow-50 border-yellow-300'
                 }`}>
@@ -1248,13 +1249,13 @@ function ModalCobro({ vehiculo, onClose }: { vehiculo: Vehiculo, onClose: () => 
                     <span className="font-semibold">Total ingresado:</span>
                     <span className="text-lg font-bold">${sumaMixto.toLocaleString()}</span>
                   </div>
-                  {sumaMixto !== totalAjustado && (
+                  {Math.abs(sumaMixto - totalAjustado) >= 1 && (
                     <div className="mt-2 text-sm">
                       <span className="font-semibold">Falta: </span>
                       <span className="text-red-600 font-bold">${(totalAjustado - sumaMixto).toLocaleString()}</span>
                     </div>
                   )}
-                  {sumaMixto === totalAjustado && (
+                  {Math.abs(sumaMixto - totalAjustado) < 1 && (
                     <p className="text-xs text-green-700 mt-1 flex items-center gap-1">
                       <CheckCircle2 className="w-4 h-4" />
                       ¡Monto correcto!

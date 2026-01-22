@@ -434,26 +434,48 @@ def cobrar_vehiculo(
                     detail=f"La suma del desglose ({suma_desglose}) no coincide con el total a cobrar ({vehiculo.total_cobrado})"
                 )
             
-            # Crear un movimiento por cada método usado en el desglose
-            for metodo, monto in cobro_data.desglose_mixto.items():
-                if monto <= 0:
+            # Crear movimientos por cada método usado en el desglose
+            # Distribuir proporcionalmente entre RTM y SOAT
+            for metodo, monto_total in cobro_data.desglose_mixto.items():
+                if monto_total <= 0:
                     continue
                     
-                monto_decimal = Decimal(str(monto))
+                monto_total_decimal = Decimal(str(monto_total))
                 ingresa_efectivo = (metodo == "efectivo")
                 
+                # Calcular porcentaje que representa este método del total
+                porcentaje = monto_total_decimal / vehiculo.total_cobrado
+                
+                # Distribuir proporcionalmente entre RTM y SOAT
+                monto_rtm = vehiculo.valor_rtm * porcentaje
+                monto_soat = vehiculo.comision_soat * porcentaje if vehiculo.comision_soat > 0 else Decimal(0)
+                
                 # Movimiento RTM parcial
-                mov = MovimientoCaja(
+                mov_rtm = MovimientoCaja(
                     caja_id=caja_abierta.id,
                     vehiculo_id=vehiculo.id,
                     tipo=TipoMovimiento.RTM,
-                    monto=monto_decimal,
+                    monto=monto_rtm,
                     metodo_pago=metodo,
                     concepto=f"RTM {vehiculo.placa} ({metodo.replace('_', ' ').title()}) - {vehiculo.cliente_nombre}",
                     ingresa_efectivo=ingresa_efectivo,
                     created_by=current_user.id
                 )
-                db.add(mov)
+                db.add(mov_rtm)
+                
+                # Movimiento SOAT parcial (si aplica)
+                if monto_soat > 0:
+                    mov_soat = MovimientoCaja(
+                        caja_id=caja_abierta.id,
+                        vehiculo_id=vehiculo.id,
+                        tipo=TipoMovimiento.COMISION_SOAT,
+                        monto=monto_soat,
+                        metodo_pago=metodo,
+                        concepto=f"Comisión SOAT {vehiculo.placa} ({metodo.replace('_', ' ').title()})",
+                        ingresa_efectivo=ingresa_efectivo,
+                        created_by=current_user.id
+                    )
+                    db.add(mov_soat)
         
         # Si NO es mixto, crear movimientos normales
         else:

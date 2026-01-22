@@ -492,7 +492,7 @@ def obtener_tramites_detallados(
             "valor_rtm": float(veh.valor_rtm),
             "comision_soat": float(veh.comision_soat),
             "total_cobrado": float(veh.total_cobrado),
-            "metodo_pago": veh.metodo_pago.value if veh.metodo_pago else "Pendiente",
+            "metodo_pago": veh.metodo_pago or "Pendiente",
             "estado": veh.estado.value,
             "pagado": veh.estado.value in ["pagado", "en_pista", "aprobado", "rechazado", "completado"],
             "registrado_por": veh.registrador.nombre_completo if veh.registrador else "N/A"
