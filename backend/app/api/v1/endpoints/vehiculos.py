@@ -667,6 +667,13 @@ def cambiar_metodo_pago(
             detail=f"Método de pago inválido. Opciones: {', '.join(metodos_validos)}"
         )
     
+    # NO permitir cambiar A método mixto
+    if nuevo_metodo.lower() == "mixto":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No se puede cambiar a método 'mixto'. El pago mixto solo es válido al momento del cobro inicial."
+        )
+    
     # Buscar vehículo
     vehiculo = db.query(VehiculoProceso).filter(
         VehiculoProceso.id == vehiculo_id
@@ -735,18 +742,57 @@ def cambiar_metodo_pago(
     
     try:
         # Actualizar método de pago en vehículo
-        vehiculo.metodo_pago = MetodoPago(nuevo_metodo)
+        vehiculo.metodo_pago = nuevo_metodo
         
-        # Actualizar cada movimiento
-        for movimiento in movimientos:
-            movimiento.metodo_pago = nuevo_metodo
+        # CASO ESPECIAL: Si el método anterior era MIXTO
+        # Consolidar todos los movimientos en uno solo con el nuevo método
+        if metodo_anterior == "mixto":
+            # 1. ELIMINAR todos los movimientos mixtos
+            for movimiento in movimientos:
+                db.delete(movimiento)
             
-            # Ajustar ingresa_efectivo según nuevo método
-            # SOLO el efectivo ingresa físicamente a caja
-            if nuevo_metodo == "efectivo":
-                movimiento.ingresa_efectivo = True
-            else:
-                movimiento.ingresa_efectivo = False
+            # 2. CREAR movimientos consolidados con el nuevo método
+            ingresa_efectivo = (nuevo_metodo == "efectivo")
+            
+            # Movimiento RTM consolidado
+            mov_rtm = MovimientoCaja(
+                caja_id=caja.id,
+                vehiculo_id=vehiculo.id,
+                tipo=TipoMovimiento.RTM,
+                monto=vehiculo.valor_rtm,
+                metodo_pago=nuevo_metodo,
+                concepto=f"RTM {vehiculo.placa} (Cambio de mixto a {nuevo_metodo}) - {vehiculo.cliente_nombre}",
+                ingresa_efectivo=ingresa_efectivo,
+                created_by=current_user.id
+            )
+            db.add(mov_rtm)
+            
+            # Movimiento SOAT consolidado (si aplica)
+            if vehiculo.comision_soat > 0:
+                mov_soat = MovimientoCaja(
+                    caja_id=caja.id,
+                    vehiculo_id=vehiculo.id,
+                    tipo=TipoMovimiento.COMISION_SOAT,
+                    monto=vehiculo.comision_soat,
+                    metodo_pago=nuevo_metodo,
+                    concepto=f"Comisión SOAT {vehiculo.placa} (Cambio de mixto a {nuevo_metodo})",
+                    ingresa_efectivo=ingresa_efectivo,
+                    created_by=current_user.id
+                )
+                db.add(mov_soat)
+        
+        # CASO NORMAL: Cambio entre métodos simples
+        else:
+            # Actualizar cada movimiento existente
+            for movimiento in movimientos:
+                movimiento.metodo_pago = nuevo_metodo
+                
+                # Ajustar ingresa_efectivo según nuevo método
+                # SOLO el efectivo ingresa físicamente a caja
+                if nuevo_metodo == "efectivo":
+                    movimiento.ingresa_efectivo = True
+                else:
+                    movimiento.ingresa_efectivo = False
         
         # Registrar en auditoría
         from app.utils.audit import audit_caja_operation
